@@ -15,6 +15,68 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Google Apps Script URL for login logging
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZzCl4lfkebECIed7jKsx9Yix_hxQpxsply6tQFXEPxEljSDoi68Re-3Sba9ft7u5M/exec';
+
+  // Helper: get GPS location
+  const getGPSLocation = (): Promise<{ lat: number; lng: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('No geolocation')); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
+      );
+    });
+  };
+
+  // Helper: reverse geocode
+  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`);
+      const data = await res.json();
+      const addr = data.address || {};
+      return [addr.city || addr.town || addr.village || '', addr.state || '', addr.country || ''].filter(Boolean).join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    } catch { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
+  };
+
+  // Helper: IP-based location fallback
+  const getIPLocation = async (): Promise<{ location: string; lat: number; lng: number }> => {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      const data = await res.json();
+      return { location: [data.city, data.region, data.country_name].filter(Boolean).join(', ') || 'Unknown', lat: data.latitude || 0, lng: data.longitude || 0 };
+    } catch { return { location: 'Unknown', lat: 0, lng: 0 }; }
+  };
+
+  // Log login event to Google Sheet (runs after successful auth)
+  const logLoginToSheet = async (userEmail: string) => {
+    let locationStr = 'Unknown';
+    let lat = 0, lng = 0;
+    try {
+      const gps = await getGPSLocation();
+      lat = gps.lat; lng = gps.lng;
+      locationStr = await reverseGeocode(lat, lng);
+    } catch {
+      try {
+        const ipLoc = await getIPLocation();
+        locationStr = ipLoc.location; lat = ipLoc.lat; lng = ipLoc.lng;
+      } catch { locationStr = 'Could not determine'; }
+    }
+    try {
+      const params = new URLSearchParams({
+        email: userEmail,
+        timestamp: new Date().toISOString(),
+        location: locationStr,
+        latitude: String(lat),
+        longitude: String(lng),
+      });
+      const beacon = new Image();
+      beacon.src = `${APPS_SCRIPT_URL}?${params.toString()}`;
+      await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`, { method: 'GET', mode: 'no-cors' });
+    } catch (err) { console.warn('Could not log to Google Sheet:', err); }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -38,6 +100,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     if (authError) {
       setError(language === 'de' ? 'Falsches Passwort oder E-Mail.' : 'Sai email hoặc mật khẩu.');
     } else if (data.user) {
+      logLoginToSheet(data.user.email || email);
       onLogin(data.user.email || email, data.user.id);
     }
 
