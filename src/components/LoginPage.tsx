@@ -14,13 +14,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccessMessage('');
 
     if (!email || !email.includes('@')) {
       setError(language === 'de' ? 'Bitte geben Sie eine gültige E-Mail ein.' : 'Vui lòng nhập email hợp lệ.');
@@ -33,54 +30,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setLoading(true);
 
-    if (isSignUp) {
-      // ── Sign Up ──
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (authError) {
-        setError(authError.message);
-      } else if (data.user) {
-        setSuccessMessage(
-          language === 'de'
-            ? 'Konto erstellt! Bitte bestätigen Sie Ihre E-Mail und melden Sie sich dann an.'
-            : 'Tạo tài khoản thành công! Vui lòng xác nhận email rồi đăng nhập.'
-        );
-        setIsSignUp(false);
-      }
-    } else {
-      // ── Sign In ──
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (authError) {
-        setError(language === 'de' ? 'Falsches Passwort oder E-Mail.' : 'Sai email hoặc mật khẩu.');
-      } else if (data.user) {
-        onLogin(data.user.email || email, data.user.id);
-      }
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (authError) {
+      setError(language === 'de' ? 'Falsches Passwort oder E-Mail.' : 'Sai email hoặc mật khẩu.');
+    } else if (data.user) {
+      onLogin(data.user.email || email, data.user.id);
     }
 
-    setLoading(false);
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email || !email.includes('@')) {
-      setError(language === 'de' ? 'Bitte E-Mail eingeben, um ein neues Passwort zu erhalten.' : 'Vui lòng nhập email để nhận link đặt lại mật khẩu.');
-      return;
-    }
-    setLoading(true);
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
-    if (resetError) {
-      setError(resetError.message);
-    } else {
-      setSuccessMessage(
-        language === 'de'
-          ? 'Passwort-Reset-Link wurde an Ihre E-Mail gesendet.'
-          : 'Link đặt lại mật khẩu đã gửi đến email của bạn.'
-      );
-    }
     setLoading(false);
   };
 
@@ -109,14 +69,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <p className="text-xs text-orange-600 font-medium mt-1">by MAMMAM Berlin</p>
         </div>
 
-        {/* Login/SignUp Form */}
+        {/* Login Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-5">
           <div className="text-center mb-2">
             <h2 className="text-lg font-semibold text-gray-800">
-              {isSignUp
-                ? (language === 'de' ? 'Konto erstellen' : 'Tạo tài khoản')
-                : (language === 'de' ? 'Anmelden' : 'Đăng nhập')
-              }
+              {language === 'de' ? 'Anmelden' : 'Đăng nhập'}
             </h2>
           </div>
 
@@ -168,12 +125,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
           )}
 
-          {successMessage && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
-              ✅ {successMessage}
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
@@ -181,33 +132,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           >
             {loading
               ? (language === 'de' ? 'Bitte warten...' : 'Đang xử lý...')
-              : isSignUp
-                ? (language === 'de' ? 'Registrieren' : 'Đăng ký')
-                : (language === 'de' ? 'Anmelden' : 'Đăng nhập')
+              : (language === 'de' ? 'Anmelden' : 'Đăng nhập')
             }
           </button>
 
-          <div className="flex items-center justify-between text-sm">
-            <button
-              type="button"
-              onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccessMessage(''); }}
-              className="text-orange-600 hover:text-orange-700 font-medium"
-            >
-              {isSignUp
-                ? (language === 'de' ? '← Zurück zum Login' : '← Quay lại đăng nhập')
-                : (language === 'de' ? 'Neues Konto erstellen' : 'Tạo tài khoản mới')
-              }
-            </button>
-            {!isSignUp && (
-              <button
-                type="button"
-                onClick={handleForgotPassword}
-                className="text-gray-500 hover:text-gray-700 text-xs"
-              >
-                {language === 'de' ? 'Passwort vergessen?' : 'Quên mật khẩu?'}
-              </button>
-            )}
-          </div>
+          <p className="text-center text-xs text-gray-400 mt-2">
+            {language === 'de'
+              ? 'Kein Konto? Bitte kontaktieren Sie den Administrator.'
+              : 'Chưa có tài khoản? Vui lòng liên hệ quản trị viên.'}
+          </p>
         </form>
 
         <p className="text-center text-xs text-gray-400 mt-6">
