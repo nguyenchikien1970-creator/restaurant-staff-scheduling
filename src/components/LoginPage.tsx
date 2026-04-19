@@ -1,147 +1,87 @@
 import React, { useState } from 'react';
 import { Lock, Mail, Eye, EyeOff, ChefHat } from 'lucide-react';
 import { useLanguage } from '../i18n';
-
-// SHA-256 hash of the password — original password is NOT stored in code
-const PASSWORD_HASH = '0d70fa2cb668a0da3142476d038b80f3ae0e55ff963feb8e0cd9b74a8e4bebaa';
-const AUTH_KEY = 'mammam_auth';
-
-// Google Apps Script Web App URL — replace with your deployed URL
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZzCl4lfkebECIed7jKsx9Yix_hxQpxsply6tQFXEPxEljSDoi68Re-3Sba9ft7u5M/exec';
+import { supabase } from '../lib/supabaseClient';
 
 interface LoginPageProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, userId: string) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const { t, language, setLanguage } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Helper: get location from browser GPS
-  const getGPSLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation not supported'));
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => reject(err),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 300000 }
-      );
-    });
-  };
-
-  // Helper: reverse geocode lat/lng → readable address
-  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`);
-      const data = await res.json();
-      const addr = data.address || {};
-      const parts = [addr.city || addr.town || addr.village || addr.municipality || '', addr.state || '', addr.country || ''].filter(Boolean);
-      return parts.join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch {
-      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
-  };
-
-  // Helper: fallback — get location from IP address
-  const getIPLocation = async (): Promise<{ location: string; lat: number; lng: number }> => {
-    try {
-      const res = await fetch('https://ipapi.co/json/');
-      const data = await res.json();
-      return {
-        location: [data.city, data.region, data.country_name].filter(Boolean).join(', ') || 'Unknown',
-        lat: data.latitude || 0,
-        lng: data.longitude || 0,
-      };
-    } catch {
-      return { location: 'Unknown', lat: 0, lng: 0 };
-    }
-  };
-
-  // Hash password using Web Crypto API (SHA-256)
-  const hashPassword = async (pw: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pw);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
 
-    // Validate email
     if (!email || !email.includes('@')) {
       setError(language === 'de' ? 'Bitte geben Sie eine gültige E-Mail ein.' : 'Vui lòng nhập email hợp lệ.');
       return;
     }
-
-    // Validate password using SHA-256 hash comparison
-    const inputHash = await hashPassword(password);
-    if (inputHash !== PASSWORD_HASH) {
-      setError(language === 'de' ? 'Falsches Passwort. Zugang verweigert.' : 'Sai mật khẩu. Từ chối truy cập.');
+    if (!password || password.length < 6) {
+      setError(language === 'de' ? 'Passwort muss mindestens 6 Zeichen haben.' : 'Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
 
     setLoading(true);
 
-    // Get user location (GPS first, fallback to IP)
-    let locationStr = 'Unknown';
-    let lat = 0;
-    let lng = 0;
-    try {
-      const gps = await getGPSLocation();
-      lat = gps.lat;
-      lng = gps.lng;
-      locationStr = await reverseGeocode(lat, lng);
-    } catch {
-      // GPS failed or denied → use IP-based location
-      try {
-        const ipLoc = await getIPLocation();
-        locationStr = ipLoc.location;
-        lat = ipLoc.lat;
-        lng = ipLoc.lng;
-      } catch {
-        locationStr = 'Could not determine';
+    if (isSignUp) {
+      // ── Sign Up ──
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (authError) {
+        setError(authError.message);
+      } else if (data.user) {
+        setSuccessMessage(
+          language === 'de'
+            ? 'Konto erstellt! Bitte bestätigen Sie Ihre E-Mail und melden Sie sich dann an.'
+            : 'Tạo tài khoản thành công! Vui lòng xác nhận email rồi đăng nhập.'
+        );
+        setIsSignUp(false);
+      }
+    } else {
+      // ── Sign In ──
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) {
+        setError(language === 'de' ? 'Falsches Passwort oder E-Mail.' : 'Sai email hoặc mật khẩu.');
+      } else if (data.user) {
+        onLogin(data.user.email || email, data.user.id);
       }
     }
 
-    // Send login event to Google Sheet via Apps Script
-    // Use GET with URL params — most reliable method (avoids CORS issues with POST)
-    try {
-      const params = new URLSearchParams({
-        email: email,
-        timestamp: new Date().toISOString(),
-        location: locationStr,
-        latitude: String(lat),
-        longitude: String(lng),
-      });
-      // Use an Image beacon as fallback — guaranteed to work even with strict CORS
-      const beacon = new Image();
-      beacon.src = `${APPS_SCRIPT_URL}?${params.toString()}`;
-
-      // Also try fetch as primary method
-      await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`, {
-        method: 'GET',
-        mode: 'no-cors',
-      });
-    } catch (err) {
-      // Silently fail — login still works even if Sheet logging fails
-      console.warn('Could not log to Google Sheet:', err);
-    }
-
-    // Save auth to localStorage
-    localStorage.setItem(AUTH_KEY, JSON.stringify({ email, loggedInAt: new Date().toISOString() }));
-
     setLoading(false);
-    onLogin(email);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email || !email.includes('@')) {
+      setError(language === 'de' ? 'Bitte E-Mail eingeben, um ein neues Passwort zu erhalten.' : 'Vui lòng nhập email để nhận link đặt lại mật khẩu.');
+      return;
+    }
+    setLoading(true);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+    if (resetError) {
+      setError(resetError.message);
+    } else {
+      setSuccessMessage(
+        language === 'de'
+          ? 'Passwort-Reset-Link wurde an Ihre E-Mail gesendet.'
+          : 'Link đặt lại mật khẩu đã gửi đến email của bạn.'
+      );
+    }
+    setLoading(false);
   };
 
   return (
@@ -155,7 +95,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       </button>
 
       <div className="w-full max-w-md">
-        {/* Logo / Brand */}
+        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl shadow-lg mb-4">
             <ChefHat size={40} className="text-white" />
@@ -169,8 +109,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <p className="text-xs text-orange-600 font-medium mt-1">by MAMMAM Berlin</p>
         </div>
 
-        {/* Login Form */}
+        {/* Login/SignUp Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-5">
+          <div className="text-center mb-2">
+            <h2 className="text-lg font-semibold text-gray-800">
+              {isSignUp
+                ? (language === 'de' ? 'Konto erstellen' : 'Tạo tài khoản')
+                : (language === 'de' ? 'Anmelden' : 'Đăng nhập')
+              }
+            </h2>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
               {language === 'de' ? 'E-Mail-Adresse' : 'Địa chỉ Email'}
@@ -219,15 +168,46 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             </div>
           )}
 
+          {successMessage && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl">
+              ✅ {successMessage}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading
-              ? (language === 'de' ? 'Anmeldung...' : 'Đang đăng nhập...')
-              : (language === 'de' ? 'Anmelden' : 'Đăng nhập')}
+              ? (language === 'de' ? 'Bitte warten...' : 'Đang xử lý...')
+              : isSignUp
+                ? (language === 'de' ? 'Registrieren' : 'Đăng ký')
+                : (language === 'de' ? 'Anmelden' : 'Đăng nhập')
+            }
           </button>
+
+          <div className="flex items-center justify-between text-sm">
+            <button
+              type="button"
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccessMessage(''); }}
+              className="text-orange-600 hover:text-orange-700 font-medium"
+            >
+              {isSignUp
+                ? (language === 'de' ? '← Zurück zum Login' : '← Quay lại đăng nhập')
+                : (language === 'de' ? 'Neues Konto erstellen' : 'Tạo tài khoản mới')
+              }
+            </button>
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-gray-500 hover:text-gray-700 text-xs"
+              >
+                {language === 'de' ? 'Passwort vergessen?' : 'Quên mật khẩu?'}
+              </button>
+            )}
+          </div>
         </form>
 
         <p className="text-center text-xs text-gray-400 mt-6">
@@ -236,18 +216,4 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       </div>
     </div>
   );
-}
-
-// Helper: check if user is already logged in
-export function getStoredAuth(): { email: string; loggedInAt: string } | null {
-  try {
-    const raw = localStorage.getItem(AUTH_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return null;
-}
-
-// Helper: logout
-export function clearAuth() {
-  localStorage.removeItem(AUTH_KEY);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MasterData, DailyEntry, CalculatedEntry, MonthlySummaryData, Employee, RestaurantConfig } from './types';
 import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert } from './lib/utils';
 import { MasterDataForm } from './components/MasterDataForm';
@@ -6,63 +6,114 @@ import { DailyEntriesTable } from './components/DailyEntriesTable';
 import { MonthlySummary } from './components/MonthlySummary';
 import { StaffManagement } from './components/StaffManagement';
 import { RestaurantSettings } from './components/RestaurantSettings';
-import { LoginPage, getStoredAuth, clearAuth } from './components/LoginPage';
-import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench } from 'lucide-react';
+import { LoginPage } from './components/LoginPage';
+import { supabase } from './lib/supabaseClient';
+import { useSupabaseData } from './hooks/useSupabaseData';
+import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2 } from 'lucide-react';
 import { useLanguage } from './i18n';
-
-const STORAGE_KEY = 'arbeitszeit_data_v2';
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
 
-  // ── Auth state ──
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!getStoredAuth());
-  const [userEmail, setUserEmail] = useState(() => getStoredAuth()?.email ?? '');
+  // ── Auth state (Supabase) ──
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  const handleLogin = (email: string) => {
+  // Check existing session on mount
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setIsLoggedIn(true);
+        setUserEmail(session.user.email || '');
+        setUserId(session.user.id);
+      }
+      setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setIsLoggedIn(true);
+        setUserEmail(session.user.email || '');
+        setUserId(session.user.id);
+      } else {
+        setIsLoggedIn(false);
+        setUserEmail('');
+        setUserId(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = (email: string, uid: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
+    setUserId(uid);
   };
 
-  const handleLogout = () => {
-    clearAuth();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
     setUserEmail('');
+    setUserId(null);
   };
 
-  const [masterData, setMasterData] = useState<MasterData>({
-    companyName: '',
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    restaurantConfig: { openTime: '12:00', closeTime: '23:00', minStaff: 1, closedDays: [] },
-    employees: []
-  });
+  // ── Supabase Data Hook ──
+  const {
+    loading: dataLoading,
+    masterData, setMasterData,
+    entries, setEntries,
+    saveConfig, saveEmployee, addEmployee, deleteEmployee, saveEntries,
+  } = useSupabaseData(userId);
 
-  const [entries, setEntries] = useState<DailyEntry[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'staff' | 'settings' | 'schedule'>('staff');
   const [scheduleAlerts, setScheduleAlerts] = useState<ScheduleAlert[]>([]);
   const [alertsExpanded, setAlertsExpanded] = useState(true);
 
+  // Auto-save config when masterData changes (debounced)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.masterData) setMasterData(parsed.masterData);
-        if (parsed.entries) setEntries(parsed.entries);
-      } catch (e) { console.error("Failed to load saved data", e); }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ masterData, entries }));
-  }, [masterData, entries]);
+    if (!userId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveConfig(masterData);
+    }, 1500);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [masterData.companyName, masterData.restaurantConfig, userId]);
 
   const handleMasterDataChange = (newData: MasterData) => setMasterData(newData);
 
-  const handleEmployeesChange = (employees: Employee[]) => {
-    setMasterData(prev => ({ ...prev, employees }));
+  const handleEmployeesChange = async (employees: Employee[]) => {
+    const prev = masterData.employees;
+    setMasterData(md => ({ ...md, employees }));
+
+    // Detect added employees
+    for (const emp of employees) {
+      const existed = prev.find(p => p.id === emp.id);
+      if (!existed) {
+        const created = await addEmployee(emp);
+        if (created) {
+          // Update local state with DB-generated id
+          setMasterData(md => ({
+            ...md,
+            employees: md.employees.map(e => e.id === emp.id ? created : e),
+          }));
+        }
+      } else if (existed.name !== emp.name || existed.weeklyHours !== emp.weeklyHours || existed.personnelNumber !== emp.personnelNumber) {
+        await saveEmployee(emp);
+      }
+    }
+
+    // Detect removed employees
+    for (const old of prev) {
+      if (!employees.find(e => e.id === old.id)) {
+        await deleteEmployee(old.id);
+      }
+    }
+
     if (selectedEmployeeId && !employees.find(e => e.id === selectedEmployeeId)) {
       setSelectedEmployeeId(null);
     }
@@ -110,6 +161,7 @@ export default function App() {
       masterData.month, masterData.year, masterData.employees, masterData.restaurantConfig, t
     );
     setEntries(newEntries);
+    saveEntries(newEntries, masterData.month, masterData.year);
     // Analyze warnings after generation
     const alerts = analyzeScheduleWarnings(
       newEntries, masterData.employees, masterData.restaurantConfig, t, language
@@ -128,6 +180,7 @@ export default function App() {
       entries, masterData.employees, masterData.restaurantConfig, t, language
     );
     setEntries(optimizedEntries);
+    saveEntries(optimizedEntries, masterData.month, masterData.year);
     // Re-analyze after optimization
     const newAlerts = analyzeScheduleWarnings(
       optimizedEntries, masterData.employees, masterData.restaurantConfig, t, language
@@ -163,7 +216,7 @@ export default function App() {
         restaurantConfig: { openTime: '12:00', closeTime: '23:00', minStaff: 1, closedDays: [], daySchedules: {} }, employees: []
       });
       setSelectedEmployeeId(null);
-      localStorage.removeItem(STORAGE_KEY);
+      saveEntries([], masterData.month, masterData.year);
     }
   };
 
@@ -184,9 +237,28 @@ export default function App() {
   const calculatedEntries = processEntries(currentEmployeeEntries);
   const summary = calculateSummary(calculatedEntries);
 
+  // ── Auth loading ──
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin text-orange-500" size={40} />
+      </div>
+    );
+  }
+
   // ── Login gate ──
   if (!isLoggedIn) {
     return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // ── Data loading ──
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+        <Loader2 className="animate-spin text-orange-500" size={40} />
+        <p className="text-gray-500 text-sm">{language === 'de' ? 'Daten werden geladen...' : 'Đang tải dữ liệu...'}</p>
+      </div>
+    );
   }
 
   return (
