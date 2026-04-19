@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hướng Dẫn Sử Dụng - Quản Lý Nhân Sự Nhà Hàng MAMMAM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      line-height: 1.7;
+      padding: 0;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #f97316, #dc2626);
+      color: white;
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .header-icon {
+      width: 80px; height: 80px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(10px);
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    .header .version {
+      display: inline-block;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.2);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Container */
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    /* TOC */
+    .toc {
+      background: white;
+      border-radius: 16px;
+      padding: 28px;
+      margin: 24px 0 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border: 1px solid #e2e8f0;
+    }
+    .toc h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #ea580c;
+    }
+    .toc ol {
+      padding-left: 20px;
+    }
+    .toc li {
+      margin-bottom: 8px;
+    }
+    .toc a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 15px;
+    }
+    .toc a:hover {
+      text-decoration: underline;
+    }
+
+    /* Quick Summary Box */
+    .quick-summary {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 2px solid #f59e0b;
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin: 24px 0 32px;
+    }
+    .quick-summary h3 {
+      color: #92400e;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    .quick-summary .steps {
+      display: grid;
+      gap: 12px;
+    }
+    .quick-summary .step-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.7);
+      padding: 12px 16px;
+      border-radius: 10px;
+    }
+    .quick-summary .step-num {
+      width: 32px; height: 32px;
+      background: #f59e0b;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .quick-summary .step-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #78350f;
+    }
+
+    /* Sections */
+    .section {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      border: 1px solid #e2e8f0;
+    }
+    .section h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #0f172a;
+    }
+    .section h2 .emoji {
+      font-size: 28px;
+    }
+    .section h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 24px 0 12px;
+      color: #334155;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #f1f5f9;
+    }
+
+    /* Instruction Steps */
+    .instruction {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+      align-items: flex-start;
+    }
+    .instruction .num {
+      width: 28px; height: 28px;
+      background: #3b82f6;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .instruction .text {
+      flex: 1;
+      font-size: 15px;
+    }
+    .instruction .text strong {
+      color: #1d4ed8;
+    }
+    .instruction .text .hint {
+      display: block;
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    /* Highlight boxes */
+    .tip-box {
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .tip-box.green {
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      color: #166534;
+    }
+    .tip-box.blue {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+    }
+    .tip-box.orange {
+      background: #fff7ed;
+      border-left: 4px solid #f97316;
+      color: #9a3412;
+    }
+    .tip-box.red {
+      background: #fef2f2;
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+    }
+    .tip-box strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    thead th {
+      background: #f1f5f9;
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 2px solid #e2e8f0;
+      font-size: 13px;
+    }
+    tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    tbody tr:hover {
+      background: #fafbfc;
+    }
+
+    /* Button illustrations */
+    .btn-example {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-example.green { background: #22c55e; color: white; }
+    .btn-example.blue { background: #3b82f6; color: white; }
+    .btn-example.orange { background: #f97316; color: white; }
+    .btn-example.red { background: #ef4444; color: white; }
+    .btn-example.gray { background: #e2e8f0; color: #475569; }
+
+    /* FAQ */
+    .faq-item {
+      margin-bottom: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+    }
+    .faq-item .question {
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+    .faq-item .answer {
+      color: #475569;
+      font-size: 14px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px 20px;
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    /* Print styles */
+    @media print {
+      body { background: white; }
+      .header { padding: 24px; }
+      .container { padding: 0 12px; }
+      .section { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+    }
+
+    /* Mobile responsive */
+    @media (max-width: 640px) {
+      .header h1 { font-size: 22px; }
+      .section { padding: 20px 18px; }
+      .section h2 { font-size: 18px; }
+      .quick-summary .step-item { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-icon">👨‍🍳</div>
+  <h1>Hướng Dẫn Sử Dụng</h1>
+  <p>Quản Lý Nhân Sự Nhà Hàng — Lập Lịch Nhân Sự Thông Minh</p>
+  <span class="version">by MAMMAM Berlin • Phiên bản 4/2026</span>
+</div>
+
+<div class="container">
+
+  <!-- QUICK SUMMARY -->
+  <div class="quick-summary">
+    <h3>⚡ CHỈ CẦN 4 BƯỚC — TÓM TẮT NHANH</h3>
+    <div class="steps">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-text">Tab <b>"Nhân viên"</b> → Nhập tên công ty + thêm nhân viên</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-text">Tab <b>"Cài đặt"</b> → Đặt giờ mở/đóng cửa + chọn ngày nghỉ</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-text">Bấm nút <b>"Tạo lịch tự động"</b> → Hệ thống tự tạo lịch cho tất cả</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-text">Tab <b>"Lịch làm việc"</b> → Kiểm tra, bấm <b>"Tối ưu lịch"</b> nếu có lỗi → Xuất Excel</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h2>📑 Mục Lục</h2>
+    <ol>
+      <li><a href="#login">Đăng nhập vào App</a></li>
+      <li><a href="#overview">Giao diện chính — 3 tab và các nút</a></li>
+      <li><a href="#staff">Thêm nhân viên (Tab "Nhân viên")</a></li>
+      <li><a href="#settings">Cài đặt nhà hàng (Tab "Cài đặt")</a></li>
+      <li><a href="#schedule">Xem và chỉnh sửa lịch (Tab "Lịch làm việc")</a></li>
+      <li><a href="#excel">Xuất file Excel</a></li>
+      <li><a href="#backup">Sao lưu dữ liệu</a></li>
+      <li><a href="#tips">Mẹo hữu ích</a></li>
+      <li><a href="#faq">Câu hỏi thường gặp</a></li>
+    </ol>
+  </div>
+
+  <!-- SECTION 1: LOGIN -->
+  <div class="section" id="login">
+    <h2><span class="emoji">📱</span> Bước 1: Đăng Nhập</h2>
+
+    <p>Mở trình duyệt (Chrome, Safari...) trên <b>điện thoại hoặc máy tính</b> và truy cập:</p>
+    <div class="tip-box blue">
+      <strong>🌐 Link truy cập App:</strong>
+      <a href="https://restaurant-staff-scheduling.vercel.app" target="_blank" style="color:#1d4ed8; word-break:break-all;">
+        restaurant-staff-scheduling.vercel.app
+      </a>
+    </div>
+
+    <h3>Các ô cần điền:</h3>
+
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text">
+        <strong>Ô "Địa chỉ Email"</strong> → Gõ email của bạn
+        <span class="hint">Ví dụ: ten@gmail.com</span>
+      </div>
+    </div>
+
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text">
+        <strong>Ô "Mật khẩu"</strong> → Gõ mật khẩu được cấp
+      </div>
+    </div>
+
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text">
+        <strong>Nút hình con mắt 👁</strong> → Bấm vào để xem mật khẩu đang gõ (bấm lại để ẩn)
+      </div>
+    </div>
+
+    <div class="instruction">
+      <div class="num">4</div>
+      <div class="text">
+        <strong>Nút <span class="btn-example orange">Đăng nhập</span></strong> → Bấm để vào App
+      </div>
+    </div>
+
+    <div class="tip-box green">
+      <strong>💡 Mẹo:</strong>
+      App sẽ <b>tự nhớ đăng nhập</b>. Lần sau mở lại không cần nhập lại email/mật khẩu.
+    </div>
+
+    <h3>Nút đổi ngôn ngữ:</h3>
+    <p>Góc trên bên phải có nút <span class="btn-example gray">🇻🇳 VN</span> / <span class="btn-example gray">🇩🇪 DE</span></p>
+    <p>Bấm vào để chuyển giữa <b>tiếng Việt</b> và <b>tiếng Đức</b>.</p>
+  </div>
+
+  <!-- SECTION 2: OVERVIEW -->
+  <div class="section" id="overview">
+    <h2><span class="emoji">🏠</span> Bước 2: Giao Diện Chính</h2>
+
+    <p>Sau khi đăng nhập, bạn sẽ thấy <b>3 tab</b> (3 trang) ở phía trên:</p>
+
+    <table>
+      <thead>
+        <tr><th>Tab</th><th>Biểu tượng</th><th>Dùng để làm gì</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Nhân viên</b></td><td>👤</td><td>Thêm / xóa nhân viên, nhập tên công ty</td></tr>
+        <tr><td><b>Cài đặt nhà hàng</b></td><td>⚙️</td><td>Đặt giờ mở/đóng cửa, ngày nghỉ, tạo lịch</td></tr>
+        <tr><td><b>Lịch làm việc</b></td><td>📅</td><td>Xem lịch, chỉnh sửa ca, xuất Excel</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Các nút ở thanh trên cùng:</h3>
+    <table>
+      <thead>
+        <tr><th>Nút</th><th>Chức năng</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="btn-example gray">🇻🇳 VN</span> / <span class="btn-example gray">🇩🇪 DE</span></td><td>Chuyển ngôn ngữ Việt ↔ Đức</td></tr>
+        <tr><td><span class="btn-example green">📊 Xuất Excel</span></td><td>Tải file Excel bảng chấm công</td></tr>
+        <tr><td>Email + 🚪</td><td>Hiện email đang đăng nhập + nút Đăng xuất</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 3: STAFF -->
+  <div class="section" id="staff">
+    <h2><span class="emoji">👥</span> Bước 3: Thêm Nhân Viên</h2>
+    <p>Bấm vào tab <span class="btn-example blue">👤 Nhân viên</span> (tab đầu tiên).</p>
+
+    <h3>Phần bên trái — "Thông tin chung"</h3>
+
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text"><strong>Ô "Tên công ty / Nhà hàng"</strong> → Gõ tên nhà hàng <span class="hint">Ví dụ: MAMMAM Berlin</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text"><strong>Ô "Tháng"</strong> → Chọn tháng cần lập lịch <span class="hint">Ví dụ: Tháng 5</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text"><strong>Ô "Năm"</strong> → Chọn năm <span class="hint">Ví dụ: 2026</span></div>
+    </div>
+
+    <h3>Phần bên phải — "Quản lý nhân viên"</h3>
+
+    <div class="instruction">
+      <div class="num">4</div>
+      <div class="text"><strong>Ô "Tên nhân viên"</strong> → Gõ tên <span class="hint">Ví dụ: Nguyễn Văn A</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">5</div>
+      <div class="text"><strong>Ô "Mã số NV"</strong> → Gõ mã nhân viên <span class="hint">Ví dụ: NV001</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">6</div>
+      <div class="text"><strong>Ô "Giờ/Tuần"</strong> → Gõ số giờ làm mỗi tuần theo hợp đồng <span class="hint">Ví dụ: 40 (giờ/tuần)</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">7</div>
+      <div class="text"><strong>Nút <span class="btn-example blue">Thêm</span></strong> → Bấm vào để thêm nhân viên vào danh sách</div>
+    </div>
+
+    <div class="tip-box orange">
+      <strong>⚠️ Lưu ý:</strong>
+      Nhân viên đã thêm sẽ xuất hiện trong bảng phía dưới. Bấm nút <b>🗑 (thùng rác đỏ)</b> để xóa nhân viên nếu cần. Hãy thêm <b>TẤT CẢ</b> nhân viên trước khi sang bước tiếp.
+    </div>
+  </div>
+
+  <!-- SECTION 4: SETTINGS -->
+  <div class="section" id="settings">
+    <h2><span class="emoji">⚙️</span> Bước 4: Cài Đặt Nhà Hàng</h2>
+    <p>Bấm vào tab <span class="btn-example blue">⚙️ Cài đặt nhà hàng</span> (tab thứ 2).</p>
+
+    <h3>Phần 1 — Giờ hoạt động</h3>
+
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text"><strong>Ô "Giờ mở cửa"</strong> → Chọn giờ nhà hàng bắt đầu mở <span class="hint">Ví dụ: 12:00</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text"><strong>Ô "Giờ đóng cửa"</strong> → Chọn giờ nhà hàng đóng cửa <span class="hint">Ví dụ: 23:00</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text"><strong>Ô "Số NV tối thiểu/ca"</strong> → Chọn số nhân viên TỐI THIỂU mỗi ca <span class="hint">Ví dụ: 2 (luôn phải có ít nhất 2 người)</span></div>
+    </div>
+
+    <h3>Phần 2 — Ngày nghỉ nhà hàng (Ruhetag)</h3>
+
+    <div class="instruction">
+      <div class="num">4</div>
+      <div class="text">Bạn sẽ thấy <b>7 ô vuông</b>: T2, T3, T4, T5, T6, T7, CN</div>
+    </div>
+    <div class="instruction">
+      <div class="num">5</div>
+      <div class="text"><strong>Bấm vào ô</strong> → Ô chuyển <b style="color:#ef4444">MÀU ĐỎ</b> = nhà hàng đóng cửa ngày đó <span class="hint">Bấm lại lần nữa để bỏ chọn (mở cửa lại)</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">6</div>
+      <div class="text">Ví dụ: Bấm <b>T2</b> → Nhà hàng nghỉ vào mỗi thứ Hai</div>
+    </div>
+
+    <h3>Phần 3 — Tạo lịch tự động ⭐</h3>
+
+    <div class="instruction">
+      <div class="num">7</div>
+      <div class="text">
+        <strong>Nút <span class="btn-example blue">Tạo lịch tự động</span></strong> → <b>BẤM VÀO ĐÂY!</b>
+        <span class="hint">Hệ thống sẽ tự động tạo lịch làm việc cho TẤT CẢ nhân viên</span>
+      </div>
+    </div>
+
+    <div class="tip-box green">
+      <strong>✨ Đây là nút QUAN TRỌNG NHẤT! Hệ thống sẽ tự động:</strong>
+      <ul style="margin-top:8px; padding-left:20px; line-height:2;">
+        <li>Phân bổ ca làm cho từng nhân viên theo giờ hợp đồng</li>
+        <li>Đảm bảo đủ người trong giờ cao điểm (11:30–15:00 và 17:00–21:30)</li>
+        <li>Tự cho nghỉ phép 2 ngày/tháng và ngày nghỉ hàng tuần (đúng Luật Đức)</li>
+        <li>Nghỉ giải lao: 30 phút (≤8h) hoặc 45 phút (&gt;8h) đúng quy định</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- SECTION 5: SCHEDULE -->
+  <div class="section" id="schedule">
+    <h2><span class="emoji">📅</span> Bước 5: Xem và Chỉnh Sửa Lịch</h2>
+    <p>Sau khi bấm "Tạo lịch tự động", app tự chuyển sang tab <span class="btn-example blue">📅 Lịch làm việc</span>.</p>
+
+    <h3>Phần cảnh báo (khung màu cam — nếu có)</h3>
+    <p>Nếu lịch có vấn đề, bạn sẽ thấy khung màu cam ở trên cùng:</p>
+
+    <table>
+      <thead><tr><th>Thành phần</th><th>Ý nghĩa</th></tr></thead>
+      <tbody>
+        <tr><td>📊 "Phát hiện X vấn đề"</td><td>Bấm vào để mở/đóng danh sách lỗi</td></tr>
+        <tr><td><span class="btn-example red">X lỗi nghiêm trọng</span></td><td>Số lỗi nghiêm trọng (thiếu người hoàn toàn)</td></tr>
+        <tr><td><span class="btn-example orange">X cảnh báo</span></td><td>Số cảnh báo (thiếu người giờ cao điểm)</td></tr>
+        <tr><td><span class="btn-example green">🔧 Tối ưu lịch</span></td><td><b>BẤM VÀO ĐÂY</b> để hệ thống TỰ ĐỘNG SỬA tất cả lỗi!</td></tr>
+      </tbody>
+    </table>
+
+    <div class="tip-box green">
+      <strong>💡 Mẹo:</strong>
+      Sau khi bấm "Tối ưu lịch", cảnh báo sẽ biến mất hoặc giảm đáng kể. Bạn có thể bấm nhiều lần!
+    </div>
+
+    <h3>Chọn nhân viên để xem lịch</h3>
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text">Phía trên có các <b>nút tròn</b> mang tên từng nhân viên</div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text"><strong>Bấm vào tên</strong> nhân viên → xem lịch làm việc của người đó</div>
+    </div>
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text">Nút đang chọn sẽ có <b style="color:#3b82f6">MÀU XANH DƯƠNG</b></div>
+    </div>
+
+    <h3>Phần "Tổng kết tháng"</h3>
+    <table>
+      <thead><tr><th>Thông tin</th><th>Ý nghĩa</th></tr></thead>
+      <tbody>
+        <tr><td><b>Giờ làm thực tế</b></td><td>Tổng số giờ đã làm trong tháng</td></tr>
+        <tr><td><b>Giờ mục tiêu</b></td><td>Số giờ phải làm theo hợp đồng (giờ/tuần × 4.33)</td></tr>
+        <tr><td><b>Chênh lệch</b></td><td>Làm thừa (+) hay thiếu (-) bao nhiêu giờ</td></tr>
+        <tr><td><b>Ngày làm việc</b></td><td>Số ngày đi làm trong tháng</td></tr>
+        <tr><td><b>Nghỉ phép (U)</b></td><td>Số ngày nghỉ phép (Urlaub)</td></tr>
+        <tr><td><b>Ngày bệnh (K)</b></td><td>Số ngày nghỉ bệnh (Krank)</td></tr>
+        <tr><td><b>Tổng giờ nghỉ</b></td><td>Tổng phút nghỉ giải lao (Pause) cả tháng</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Bảng chấm công (bảng lớn phía dưới)</h3>
+    <p>Đây là bảng chi tiết từng ngày. Bạn có thể <b>bấm vào bất kỳ ô nào để sửa</b>:</p>
+
+    <table>
+      <thead><tr><th>Cột</th><th>Ý nghĩa</th><th>Cách dùng</th></tr></thead>
+      <tbody>
+        <tr><td><b>Ngày</b></td><td>Ngày trong tháng</td><td>Chỉ xem</td></tr>
+        <tr><td><b>Bắt đầu</b></td><td>Giờ vào ca</td><td>Bấm → chọn giờ mới</td></tr>
+        <tr><td><b>Nghỉ (Phút)</b></td><td>Phút nghỉ giải lao</td><td>Bấm → gõ số phút</td></tr>
+        <tr><td><b>Kết thúc</b></td><td>Giờ ra ca</td><td>Bấm → chọn giờ mới</td></tr>
+        <tr><td><b>Tổng giờ</b></td><td>Tổng giờ làm ngày đó</td><td>Tự tính (không cần sửa)</td></tr>
+        <tr><td><b>Trạng thái</b></td><td>Trạng thái đặc biệt</td><td>Chọn từ danh sách</td></tr>
+        <tr><td><b>Ghi chú</b></td><td>Ghi chú thêm</td><td>Gõ bất kỳ nội dung nào</td></tr>
+        <tr><td><b>📋</b></td><td>Sao chép giờ từ ngày trước</td><td>Bấm 1 nút = copy giống hôm trước</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Giải thích các Trạng Thái:</h3>
+    <table>
+      <thead><tr><th>Ký hiệu</th><th>Nghĩa tiếng Đức</th><th>Nghĩa tiếng Việt</th></tr></thead>
+      <tbody>
+        <tr><td><b>-</b></td><td>(trống)</td><td>Ngày làm việc bình thường</td></tr>
+        <tr><td><b>K</b></td><td>Krank</td><td>Nghỉ bệnh</td></tr>
+        <tr><td><b>U</b></td><td>Urlaub</td><td>Nghỉ phép (có lương)</td></tr>
+        <tr><td><b>UU</b></td><td>Unbezahlter Urlaub</td><td>Nghỉ không lương</td></tr>
+        <tr><td><b>F</b></td><td>Feiertag</td><td>Ngày lễ</td></tr>
+        <tr><td><b>SA</b></td><td>Stundenweise abwesend</td><td>Vắng mặt theo giờ</td></tr>
+        <tr><td><b>SU</b></td><td>Stundenweise Urlaub</td><td>Nghỉ phép theo giờ</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SECTION 6: EXCEL -->
+  <div class="section" id="excel">
+    <h2><span class="emoji">📊</span> Bước 6: Xuất File Excel</h2>
+    <p>Khi lịch đã hoàn chỉnh, bạn có thể tải file Excel về máy:</p>
+
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text">Bấm nút <span class="btn-example green">📊 Xuất Excel</span> ở góc trên bên phải</div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text">File <b>.xlsx</b> sẽ tự động tải về máy</div>
+    </div>
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text">Mở file bằng <b>Excel</b> hoặc <b>Google Sheets</b> (miễn phí)</div>
+    </div>
+
+    <div class="tip-box blue">
+      <strong>📝 Ghi nhớ:</strong>
+      File Excel chứa bảng chấm công cho <b>TẤT CẢ nhân viên</b> — mỗi nhân viên là 1 trang (sheet) riêng.
+    </div>
+  </div>
+
+  <!-- SECTION 7: BACKUP -->
+  <div class="section" id="backup">
+    <h2><span class="emoji">💾</span> Bước 7: Sao Lưu Dữ Liệu</h2>
+
+    <p>Dữ liệu lưu trên <b>trình duyệt</b> của bạn. Nếu xóa lịch sử trình duyệt sẽ mất dữ liệu. Vì vậy hãy <b>sao lưu thường xuyên</b>!</p>
+
+    <h3>Cách sao lưu:</h3>
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text">Vào tab <b>"Cài đặt nhà hàng"</b></div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text">Kéo xuống phần <b>"Quản lý dữ liệu"</b></div>
+    </div>
+    <div class="instruction">
+      <div class="num">3</div>
+      <div class="text">Bấm <span class="btn-example blue">⬇️ Tải bản sao lưu (.json)</span> → File tải về máy</div>
+    </div>
+
+    <h3>Cách khôi phục:</h3>
+    <div class="instruction">
+      <div class="num">1</div>
+      <div class="text">Bấm <span class="btn-example gray">⬆️ Khôi phục từ file</span></div>
+    </div>
+    <div class="instruction">
+      <div class="num">2</div>
+      <div class="text">Chọn file <b>.json</b> đã tải trước đó → Dữ liệu được khôi phục!</div>
+    </div>
+
+    <div class="tip-box red">
+      <strong>⚠️ Quan trọng:</strong>
+      Hãy sao lưu <b>MỖI THÁNG</b> sau khi hoàn thành lịch. Lưu file vào thư mục dễ tìm trên máy tính.
+    </div>
+  </div>
+
+  <!-- SECTION 8: TIPS -->
+  <div class="section" id="tips">
+    <h2><span class="emoji">💡</span> Mẹo Hữu Ích</h2>
+
+    <div class="tip-box green">
+      <strong>1. Dữ liệu TỰ LƯU</strong>
+      App tự động lưu mọi thay đổi. Bạn KHÔNG cần bấm nút "Lưu". Sẽ có dòng chữ nhấp nháy "Đã lưu tự động" ở trên cùng.
+    </div>
+
+    <div class="tip-box blue">
+      <strong>2. Nút 📋 sao chép</strong>
+      Rất tiện! Bấm vào để copy giờ làm giống hệt ngày hôm trước. Tiết kiệm thời gian khi nhiều ngày làm giống nhau.
+    </div>
+
+    <div class="tip-box green">
+      <strong>3. Đổi tháng/năm</strong>
+      Quay lại tab "Nhân viên" → đổi tháng/năm → rồi vào tab "Cài đặt" → bấm "Tạo lịch tự động" lại.
+    </div>
+
+    <div class="tip-box blue">
+      <strong>4. Dùng trên điện thoại</strong>
+      App hoạt động đầy đủ trên điện thoại! Xoay ngang điện thoại để xem bảng rộng hơn.
+    </div>
+
+    <div class="tip-box green">
+      <strong>5. In bảng chấm công</strong>
+      Xuất Excel → mở file → bấm In (Print). Hoặc bạn có thể in trang này (Ctrl+P / Cmd+P).
+    </div>
+  </div>
+
+  <!-- SECTION 9: FAQ -->
+  <div class="section" id="faq">
+    <h2><span class="emoji">❓</span> Câu Hỏi Thường Gặp</h2>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Tôi quên mật khẩu?</div>
+      <div class="answer">→ Liên hệ quản lý để nhận lại mật khẩu.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: App có mất dữ liệu không?</div>
+      <div class="answer">→ Dữ liệu lưu trên trình duyệt. Nếu xóa lịch sử trình duyệt hoặc đổi máy thì sẽ mất. Hãy <b>sao lưu thường xuyên</b> bằng nút "Tải bản sao lưu"!</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Sao nhân viên X không có lịch?</div>
+      <div class="answer">→ Kiểm tra đã thêm nhân viên đó chưa (tab "Nhân viên"), rồi bấm "Tạo lịch tự động" lại.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Lịch có lỗi cảnh báo "Thiếu người"?</div>
+      <div class="answer">→ Bấm nút <b>"🔧 Tối ưu lịch"</b> (màu xanh lá) — hệ thống sẽ tự sửa lỗi.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Có dùng được trên điện thoại không?</div>
+      <div class="answer">→ Có! Mở Chrome hoặc Safari trên điện thoại → vào link app → dùng bình thường. Xoay ngang để xem bảng rộng hơn.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Muốn sửa giờ làm 1 ngày cụ thể?</div>
+      <div class="answer">→ Vào tab "Lịch làm việc" → chọn nhân viên → bấm vào ô "Bắt đầu" hoặc "Kết thúc" của ngày đó → chọn giờ mới.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Nhân viên nghỉ bệnh, làm sao ghi?</div>
+      <div class="answer">→ Trong bảng chấm công, tìm ngày nghỉ bệnh → ở cột "Trạng thái" chọn <b>K (Krank/Bệnh)</b>. Hệ thống sẽ tự xóa giờ làm ngày đó.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>© 2026 Kien-MAMMAM-Berlin — Quản Lý Nhân Sự Nhà Hàng</p>
+  <p style="margin-top:4px;">Mở file này bằng bất kỳ trình duyệt nào (Chrome, Safari, Edge, Firefox...)</p>
+</div>
+
+</body>
+</html>
