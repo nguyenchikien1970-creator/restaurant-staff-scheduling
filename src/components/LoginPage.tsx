@@ -16,7 +16,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
 
   // Google Apps Script URL for login logging
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxZzCl4lfkebECIed7jKsx9Yix_hxQpxsply6tQFXEPxEljSDoi68Re-3Sba9ft7u5M/exec';
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwaUu0tgyJZFv4-1mgKuJ0SQXZbAW50hNZ3X_U39yakNES26I206QqgGaeRfZ7pesO9/exec';
 
   // Helper: get GPS location
   const getGPSLocation = (): Promise<{ lat: number; lng: number }> => {
