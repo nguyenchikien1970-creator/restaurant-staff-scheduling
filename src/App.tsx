@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { MasterData, DailyEntry, CalculatedEntry, MonthlySummaryData, Employee, RestaurantConfig } from './types';
 import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert } from './lib/utils';
-import { MasterDataForm } from './components/MasterDataForm';
-import { DailyEntriesTable } from './components/DailyEntriesTable';
-import { MonthlySummary } from './components/MonthlySummary';
 import { StaffManagement } from './components/StaffManagement';
-import { RestaurantSettings } from './components/RestaurantSettings';
+
+// Lazy-loaded components — only fetched when user navigates to them
+const MasterDataForm = React.lazy(() => import('./components/MasterDataForm').then(m => ({ default: m.MasterDataForm })));
+const DailyEntriesTable = React.lazy(() => import('./components/DailyEntriesTable').then(m => ({ default: m.DailyEntriesTable })));
+const MonthlySummary = React.lazy(() => import('./components/MonthlySummary').then(m => ({ default: m.MonthlySummary })));
+const RestaurantSettings = React.lazy(() => import('./components/RestaurantSettings').then(m => ({ default: m.RestaurantSettings })));
 import { LoginPage } from './components/LoginPage';
 import { supabase } from './lib/supabaseClient';
 import { useSupabaseData } from './hooks/useSupabaseData';
-import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2, RefreshCw } from 'lucide-react';
 import { useLanguage } from './i18n';
 
 export default function App() {
@@ -63,9 +65,13 @@ export default function App() {
   // ── Supabase Data Hook ──
   const {
     loading: dataLoading,
+    loadError,
+    saveStatus,
+    saveMessage,
     masterData, setMasterData,
     entries, setEntries,
     saveConfig, saveEmployee, addEmployee, deleteEmployee, saveEntries,
+    loadData,
   } = useSupabaseData(userId);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -261,8 +267,39 @@ export default function App() {
     );
   }
 
+  // ── Load error with retry ──
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+        <AlertCircle className="text-red-500" size={48} />
+        <p className="text-red-600 font-medium">{language === 'de' ? 'Fehler beim Laden der Daten' : 'Lỗi tải dữ liệu'}</p>
+        <p className="text-gray-500 text-sm max-w-md text-center">{loadError}</p>
+        <button
+          onClick={() => loadData()}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+        >
+          <RefreshCw size={16} />
+          {language === 'de' ? 'Erneut versuchen' : 'Thử lại'}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans text-gray-900">
+      {/* Floating save status indicator */}
+      {saveStatus !== 'idle' && (
+        <div className={`fixed bottom-4 right-4 z-50 px-4 py-2 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 transition-all ${
+          saveStatus === 'saving' ? 'bg-blue-500 text-white' :
+          saveStatus === 'saved' ? 'bg-green-500 text-white' :
+          'bg-red-500 text-white'
+        }`}>
+          {saveStatus === 'saving' && <Loader2 className="animate-spin" size={16} />}
+          {saveStatus === 'saving' && (language === 'de' ? 'Wird gespeichert...' : 'Đang lưu...')}
+          {saveStatus === 'saved' && (language === 'de' ? '✓ Gespeichert' : '✓ Đã lưu')}
+          {saveStatus === 'error' && (language === 'de' ? `✗ Fehler: ${saveMessage}` : `✗ Lỗi: ${saveMessage}`)}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* Header */}
@@ -352,6 +389,7 @@ export default function App() {
         </div>
 
         {/* Tab Content */}
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-500" size={32} /></div>}>
         <div className="space-y-6">
           {activeTab === 'staff' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -495,6 +533,7 @@ export default function App() {
             </div>
           )}
         </div>
+        </Suspense>
       </div>
     </div>
   );
