@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Lock, Mail, Eye, EyeOff, ChefHat } from 'lucide-react';
 import { useLanguage } from '../i18n';
 
-const CORRECT_PASSWORD = 'Kien-MAMMAM-Berlin';
+// SHA-256 hash of the password — original password is NOT stored in code
+const PASSWORD_HASH = '0d70fa2cb668a0da3142476d038b80f3ae0e55ff963feb8e0cd9b74a8e4bebaa';
 const AUTH_KEY = 'mammam_auth';
 
 // Google Apps Script Web App URL — replace with your deployed URL
@@ -63,6 +64,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
+  // Hash password using Web Crypto API (SHA-256)
+  const hashPassword = async (pw: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pw);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -73,8 +83,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       return;
     }
 
-    // Validate password
-    if (password !== CORRECT_PASSWORD) {
+    // Validate password using SHA-256 hash comparison
+    const inputHash = await hashPassword(password);
+    if (inputHash !== PASSWORD_HASH) {
       setError(language === 'de' ? 'Falsches Passwort. Zugang verweigert.' : 'Sai mật khẩu. Từ chối truy cập.');
       return;
     }
