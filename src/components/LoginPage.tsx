@@ -15,7 +15,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
 
   // App password from env
-  const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'mammam2024';
+  const APP_PASSWORD = (import.meta.env.VITE_APP_PASSWORD || 'mammam2024').trim();
 
   // Google Apps Script URL for login logging
   const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
