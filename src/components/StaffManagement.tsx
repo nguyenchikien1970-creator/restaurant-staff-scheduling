@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Employee } from '../types';
+import { Employee, ContractType, deriveContractType } from '../types';
 import { Plus, Trash2, Users } from 'lucide-react';
 import { useLanguage } from '../i18n';
 
@@ -22,23 +22,28 @@ function parseDecimalComma(str: string): number {
 }
 
 export function StaffManagement({ employees, onChange }: StaffManagementProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [newName, setNewName] = useState('');
   const [newPersonnelNumber, setNewPersonnelNumber] = useState('');
   const [newHoursStr, setNewHoursStr] = useState('40,00');
+  const [newContractType, setNewContractType] = useState<ContractType | ''>('');
 
   const addEmployee = () => {
     if (!newName) return;
+    const hours = parseDecimalComma(newHoursStr);
     const newEmployee: Employee = {
       id: Math.random().toString(36).substr(2, 9),
       name: newName,
       personnelNumber: newPersonnelNumber || (employees.length + 1).toString().padStart(3, '0'),
-      weeklyHours: parseDecimalComma(newHoursStr),
+      weeklyHours: hours,
+      contractType: newContractType || deriveContractType(hours),
+      isActive: true,
     };
     onChange([...employees, newEmployee]);
     setNewName('');
     setNewPersonnelNumber('');
     setNewHoursStr('40,00');
+    setNewContractType('');
   };
 
   const removeEmployee = (id: string) => onChange(employees.filter(e => e.id !== id));
@@ -84,6 +89,19 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
           </div>
+          <div className="w-36">
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('staff.contractType')}</label>
+            <select
+              value={newContractType}
+              onChange={(e) => setNewContractType(e.target.value as ContractType | '')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+            >
+              <option value="">{language === 'de' ? 'Auto' : 'Tự động'}</option>
+              <option value="Vollzeit">{t('staff.vollzeit')}</option>
+              <option value="Teilzeit">{t('staff.teilzeit')}</option>
+              <option value="Minijob">{t('staff.minijob')}</option>
+            </select>
+          </div>
           <div className="flex items-end">
             <button
               onClick={addEmployee} disabled={employees.length >= 20}
@@ -102,6 +120,7 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
                 <th className="px-4 py-3">{t('staff.name')}</th>
                 <th className="px-4 py-3">{t('staff.id')}</th>
                 <th className="px-4 py-3">{t('staff.hoursPerWeek')}</th>
+                <th className="px-4 py-3">{t('staff.contractType')}</th>
                 <th className="px-4 py-3 text-right">{t('staff.actions')}</th>
               </tr>
             </thead>
@@ -116,7 +135,7 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">
                     {t('staff.empty')}
                   </td>
                 </tr>
@@ -162,6 +181,17 @@ const DecimalEmployeeRow: React.FC<DecimalEmployeeRowProps> = ({ emp, onUpdate, 
           }}
           className="w-20 bg-transparent border-none focus:ring-0 p-0"
         />
+      </td>
+      <td className="px-4 py-3">
+        <select
+          value={emp.contractType || deriveContractType(emp.weeklyHours)}
+          onChange={(e) => onUpdate(emp.id, 'contractType', e.target.value)}
+          className="bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600"
+        >
+          <option value="Vollzeit">Vollzeit</option>
+          <option value="Teilzeit">Teilzeit</option>
+          <option value="Minijob">Minijob</option>
+        </select>
       </td>
       <td className="px-4 py-3 text-right">
         <button onClick={() => onRemove(emp.id)} className="text-red-500 hover:text-red-700 p-1">

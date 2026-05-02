@@ -31,6 +31,69 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// ── German Public Holidays (Feiertage) ──
+// Easter calculation using Anonymous Gregorian algorithm
+function getEasterDate(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+export const BUNDESLAENDER = [
+  'BW', 'BY', 'BE', 'BB', 'HB', 'HH', 'HE', 'MV', 'NI', 'NW', 'RP', 'SL', 'SN', 'ST', 'SH', 'TH'
+] as const;
+
+export const BUNDESLAND_NAMES: Record<string, string> = {
+  'BW': 'Baden-Württemberg', 'BY': 'Bayern', 'BE': 'Berlin', 'BB': 'Brandenburg',
+  'HB': 'Bremen', 'HH': 'Hamburg', 'HE': 'Hessen', 'MV': 'Mecklenburg-Vorpommern',
+  'NI': 'Niedersachsen', 'NW': 'Nordrhein-Westfalen', 'RP': 'Rheinland-Pfalz',
+  'SL': 'Saarland', 'SN': 'Sachsen', 'ST': 'Sachsen-Anhalt', 'SH': 'Schleswig-Holstein', 'TH': 'Thüringen'
+};
+
+export function getGermanHolidays(year: number, bundesland?: string): Set<string> {
+  const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+  const addD = (d: Date, days: number) => addDays(d, days);
+  const easter = getEasterDate(year);
+  const bl = bundesland || '';
+
+  const holidays = new Set<string>();
+
+  // National holidays (all states)
+  holidays.add(fmt(new Date(year, 0, 1)));    // Neujahr
+  holidays.add(fmt(addD(easter, -2)));         // Karfreitag
+  holidays.add(fmt(addD(easter, 1)));          // Ostermontag
+  holidays.add(fmt(new Date(year, 4, 1)));     // Tag der Arbeit
+  holidays.add(fmt(addD(easter, 39)));         // Christi Himmelfahrt
+  holidays.add(fmt(addD(easter, 50)));         // Pfingstmontag
+  holidays.add(fmt(new Date(year, 9, 3)));     // Tag der Deutschen Einheit
+  holidays.add(fmt(new Date(year, 11, 25)));   // 1. Weihnachtstag
+  holidays.add(fmt(new Date(year, 11, 26)));   // 2. Weihnachtstag
+
+  // State-specific holidays
+  if (['BW', 'BY', 'ST'].includes(bl)) holidays.add(fmt(new Date(year, 0, 6)));       // Heilige Drei Könige
+  if (['BW', 'BY', 'HE', 'NW', 'RP', 'SL'].includes(bl)) holidays.add(fmt(addD(easter, 60))); // Fronleichnam
+  if (['BY', 'SL'].includes(bl)) holidays.add(fmt(new Date(year, 7, 15)));             // Mariä Himmelfahrt
+  if (['BB', 'MV', 'SN', 'ST', 'TH'].includes(bl)) holidays.add(fmt(new Date(year, 9, 31)));   // Reformationstag
+  if (['BW', 'BY', 'NW', 'RP', 'SL'].includes(bl)) holidays.add(fmt(new Date(year, 10, 1)));   // Allerheiligen
+  if (['SN'].includes(bl)) {
+    // Buß- und Bettag: Wednesday before Nov 23
+    const nov23 = new Date(year, 10, 23);
+    const dayOfWeek = nov23.getDay();
+    const daysBack = dayOfWeek >= 3 ? dayOfWeek - 3 : dayOfWeek + 4;
+    holidays.add(fmt(addD(nov23, -daysBack)));
+  }
+  if (['BE'].includes(bl)) holidays.add(fmt(new Date(year, 2, 8)));                   // Internationaler Frauentag
+  if (['TH'].includes(bl)) holidays.add(fmt(new Date(year, 8, 20)));                  // Weltkindertag
+
+  return holidays;
+}
+
 export function generateMonthDates(month: number, year: number): string[] {
   const daysInMonth = getDaysInMonth(new Date(year, month - 1));
   const dates: string[] = [];
@@ -106,9 +169,12 @@ export function calculateDecimalHours(minutes: number): number {
 }
 
 // Returns translation keys instead of hardcoded strings
-// Pause rules:
-//   net ≤ 8h (480 min)  → Pause must be ≥ 30 min
-//   net > 8h (480 min)  → Pause must be ≥ 45 min
+// Pause rules (based on GROSS time = total time present):
+//   gross ≤ 8h30 (510 min) → Pause must be ≥ 30 min
+//   gross > 8h30 (510 min) → Pause must be ≥ 45 min
+// German labor law:
+//   max 10h net per day
+//   max 6h continuous work without break
 export function validateRow(entry: DailyEntry, durationMinutes: number): string[] {
   const warnings: string[] = [];
   const isFullAbsence = ['K', 'U', 'UU', 'F'].includes(entry.absenceCode);
@@ -117,27 +183,71 @@ export function validateRow(entry: DailyEntry, durationMinutes: number): string[
     if (entry.startTime && !entry.endTime) warnings.push('warning.endMissing');
     if (!entry.startTime && entry.endTime) warnings.push('warning.startMissing');
     if (entry.pauseMinutes < 0) warnings.push('warning.pauseNegative');
-    // Only flag pause if we actually have a full shift recorded
+    // Only flag if we have a full shift recorded
     if (entry.startTime && entry.endTime && durationMinutes > 0) {
-      if (durationMinutes > 480 && entry.pauseMinutes < 45) warnings.push('warning.pauseUnder45');
-      else if (durationMinutes <= 480 && entry.pauseMinutes < 30) warnings.push('warning.pauseUnder30');
+      // Calculate GROSS time (total time present = net worked + pause)
+      const grossMinutes = durationMinutes + (entry.pauseMinutes || 0);
+
+      // Break rules (GROSS-based)
+      if (grossMinutes > 510 && entry.pauseMinutes < 45) warnings.push('warning.pauseUnder45');
+      else if (grossMinutes <= 510 && grossMinutes > 360 && entry.pauseMinutes < 30) warnings.push('warning.pauseUnder30');
+
+      // German law: max 10h NET per day
+      if (durationMinutes > 600) warnings.push('warning.over10h');
+      // German law: > 6h continuous without any break
+      else if (grossMinutes > 360 && (entry.pauseMinutes || 0) === 0) warnings.push('warning.over6hNoPause');
     }
   }
   return warnings;
 }
 
+// Check 11h minimum rest between consecutive shifts for one employee
+export function validateRestBetweenShifts(entries: DailyEntry[]): Map<string, string[]> {
+  const restWarnings = new Map<string, string[]>(); // date → warnings
+  const sorted = entries
+    .filter(e => e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode))
+    .sort((a, b) => {
+      const dateComp = a.date.localeCompare(b.date);
+      if (dateComp !== 0) return dateComp;
+      return a.startTime.localeCompare(b.startTime);
+    });
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    // Parse end of previous day and start of current day
+    const prevEnd = parse(`${prev.date} ${prev.endTime}`, 'yyyy-MM-dd HH:mm', new Date());
+    const currStart = parse(`${curr.date} ${curr.startTime}`, 'yyyy-MM-dd HH:mm', new Date());
+    const restMinutes = differenceInMinutes(currStart, prevEnd);
+
+    if (restMinutes >= 0 && restMinutes < 660) { // 11h = 660 min
+      const existing = restWarnings.get(curr.date) || [];
+      existing.push('warning.restUnder11h');
+      restWarnings.set(curr.date, existing);
+    }
+  }
+  return restWarnings;
+}
+
+
 export function processEntries(entries: DailyEntry[]): CalculatedEntry[] {
+  // Pre-compute rest-between-shifts warnings for the entire list
+  const restWarnings = validateRestBetweenShifts(entries);
+
   return entries.map(entry => {
     const isFullAbsence = ['K', 'U', 'UU', 'F'].includes(entry.absenceCode);
     let durationMinutes = 0;
     if (!isFullAbsence || entry.absenceCode === 'SA' || entry.absenceCode === 'SU') {
       durationMinutes = calculateWorkedMinutes(entry.startTime, entry.endTime, entry.pauseMinutes);
     }
+    const rowWarnings = validateRow(entry, durationMinutes);
+    // Merge rest warnings for this date
+    const dateRestWarnings = restWarnings.get(entry.date) || [];
     return {
       ...entry, durationMinutes,
       durationTime: formatMinutesToTime(durationMinutes),
       durationDecimal: calculateDecimalHours(durationMinutes),
-      warnings: validateRow(entry, durationMinutes)
+      warnings: [...rowWarnings, ...dateRestWarnings]
     };
   });
 }
@@ -158,6 +268,43 @@ export function calculateSummary(entries: CalculatedEntry[]): MonthlySummaryData
   });
 
   return { totalNormalHours, totalK, totalU, totalUU, totalF, calendarDays: entries.length, workedDays, absenceDays, totalBreakMinutes, totalDecimalHours };
+}
+
+export interface EmployeeAccuracy {
+  employeeId: string;
+  name: string;
+  weeklyHours: number;
+  targetHours: number;
+  actualHours: number;
+  difference: number;
+  accuracy: number; // 0-100+
+  workedDays: number;
+  sickDays: number;
+  vacationDays: number;
+}
+
+export function calculateEmployeeAccuracy(emp: Employee, allEntries: DailyEntry[]): EmployeeAccuracy {
+  const empEntries = allEntries.filter(e => e.employeeId === emp.id);
+  const processed = processEntries(empEntries);
+  const summary = calculateSummary(processed);
+  const targetHours = emp.weeklyHours * 4.33;
+  const accuracy = targetHours > 0 ? Math.round((summary.totalNormalHours / targetHours) * 100) : 0;
+  return {
+    employeeId: emp.id,
+    name: emp.name,
+    weeklyHours: emp.weeklyHours,
+    targetHours: +targetHours.toFixed(2),
+    actualHours: +summary.totalNormalHours.toFixed(2),
+    difference: +(summary.totalNormalHours - targetHours).toFixed(2),
+    accuracy: Math.min(accuracy, 200), // cap at 200% for display
+    workedDays: summary.workedDays,
+    sickDays: summary.totalK,
+    vacationDays: summary.totalU,
+  };
+}
+
+export function calculateAllEmployeesAccuracy(employees: Employee[], allEntries: DailyEntry[]): EmployeeAccuracy[] {
+  return employees.map(emp => calculateEmployeeAccuracy(emp, allEntries));
 }
 
 export function exportToExcel(masterData: MasterData, allEntries: DailyEntry[], employees: Employee[], t: TranslateFn, language: Language = 'vi') {
@@ -201,8 +348,6 @@ export function exportToExcel(masterData: MasterData, allEntries: DailyEntry[], 
   const safeCompany = masterData.companyName.replace(/[^a-z0-9]/gi, '_') || 'Restaurant';
   const filename = `Arbeitszeit_${safeCompany}_${masterData.year}-${masterData.month.toString().padStart(2, '0')}.xlsx`;
 
-  // Use Blob-based download for maximum browser compatibility
-  // XLSX.writeFile() can silently fail on some browsers/environments
   try {
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -212,14 +357,9 @@ export function exportToExcel(masterData: MasterData, allEntries: DailyEntry[], 
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   } catch (err) {
     console.error('Excel export error:', err);
-    // Fallback to XLSX.writeFile
     XLSX.writeFile(wb, filename);
   }
 }
@@ -228,202 +368,206 @@ export function generateSmartSchedule(
   month: number, year: number, employees: Employee[], config: RestaurantConfig, t: TranslateFn
 ): DailyEntry[] {
   const dates = generateMonthDates(month, year);
-  const daysInMonth = dates.length;
 
-  // ─────────────────────────────────────────────────────────────
-  // PHASE 1: Pre-plan which days each employee WORKS vs RESTS
-  // ─────────────────────────────────────────────────────────────
+  // ── Helpers ──
+  const getISOWeek = (dateStr: string): number =>
+    getWeek(new Date(dateStr), { weekStartsOn: 1 });
+  const roundTo15 = (d: Date): Date =>
+    new Date(Math.round(d.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
+  const toHHMM = (d: Date): string => format(d, 'HH:mm');
 
-  // workPlan[empId][dayIndex] = 'work' | 'urlaub' | 'off' | 'closed'
-  // 'closed' = Ruhetag des Restaurants → zählt auch als Ruhetag für Mitarbeiter
-  const workPlan: Record<string, ('work' | 'urlaub' | 'off' | 'closed')[]> = {};
+  // ── Effective headcount from config (with sane defaults) ──
+  const baseN = config.baselineHeadcount ?? config.minStaff;
+  const lunchPeak = config.lunchPeakHeadcount ?? (config.minStaff + 2);
+  const dinnerPeak = config.dinnerPeakHeadcount ?? (config.minStaff + 2);
+  const busyDays = new Set(config.busyDays || []);
+  // On busy days, use peak headcount as baseline; on normal days, use baseN
+  const getNForDay = (dow: number) => busyDays.has(dow) ? Math.max(lunchPeak, dinnerPeak, baseN) : baseN;
+  const N = baseN; // default for pre-calculations
 
-  // Day metadata — uses per-day schedule for open/close times
+  // ── Filter active employees only ──
+  const activeEmployees = employees.filter(e => e.isActive !== false);
+
+  // ── Day metadata ──
   const dayMeta = dates.map((d, i) => {
     const date = new Date(d);
-    const dow = date.getDay(); // 0=Sun, 6=Sat
-    const isWeekend = dow === 0 || dow === 6;
-    const isFriday = dow === 5;
-    const isWeekday = dow >= 1 && dow <= 4; // Mon–Thu only (best rest days)
+    const dow = date.getDay();
     const dayOC = getDayOpenClose(config, dow);
     const isRestaurantClosed = dayOC.closed;
-    const rawOpen = parse(dayOC.openTime, 'HH:mm', new Date());
-    const rawClose = parse(dayOC.closeTime, 'HH:mm', new Date());
-    const openTimeDate = new Date(Math.round(rawOpen.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
-    const closeTimeDate = new Date(Math.round(rawClose.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
-    return { d, i, dow, isWeekend, isFriday, isWeekday, isRestaurantClosed, openTimeDate, closeTimeDate };
+    const openTimeDate = roundTo15(parse(dayOC.openTime, 'HH:mm', new Date()));
+    const closeTimeDate = roundTo15(parse(dayOC.closeTime, 'HH:mm', new Date()));
+    const week = getISOWeek(d);
+    return { d, i, dow, isRestaurantClosed, openTimeDate, closeTimeDate, week };
   });
 
-  // Initialize workPlan: Ruhetage → 'closed', all other days → 'work'
-  employees.forEach(emp => {
-    workPlan[emp.id] = dates.map((_, i) =>
-      dayMeta[i].isRestaurantClosed ? 'closed' : 'work'
-    );
+  // ── Feiertage: German public holidays ──
+  const holidays = getGermanHolidays(year, config.bundesland);
+
+  // ── RULE 5: Vacation 2 days/month per employee (mid-month weekdays) ──
+  const vacationDays: Record<string, Set<number>> = {};
+  const weekdayCandidates = dayMeta
+    .filter(x => !x.isRestaurantClosed && x.dow >= 1 && x.dow <= 4)
+    .map(x => x.i);
+
+  activeEmployees.forEach((emp, empIdx) => {
+    vacationDays[emp.id] = new Set();
+    const pool1 = weekdayCandidates.filter(i => new Date(dates[i]).getDate() >= 8 && new Date(dates[i]).getDate() <= 15);
+    const pool2 = weekdayCandidates.filter(i => new Date(dates[i]).getDate() >= 16 && new Date(dates[i]).getDate() <= 23);
+    if (pool1.length > 0) vacationDays[emp.id].add(pool1[empIdx % pool1.length]);
+    if (pool2.length > 0) vacationDays[emp.id].add(pool2[(empIdx + 2) % pool2.length]);
   });
 
-  // ── 1a. Vacation days: spread across mid-month WEEKDAYS (Mon-Thu) that are NOT closed days
-  const restCandidateDays = dayMeta.filter(x => x.isWeekday && !x.isRestaurantClosed).map(x => x.i);
-
-  employees.forEach((emp, empIdx) => {
-    const pool1 = restCandidateDays.filter(i => new Date(dates[i]).getDate() >= 8 && new Date(dates[i]).getDate() <= 15);
-    const pool2 = restCandidateDays.filter(i => new Date(dates[i]).getDate() >= 16 && new Date(dates[i]).getDate() <= 23);
-    if (pool1.length > 0) workPlan[emp.id][pool1[empIdx % pool1.length]] = 'urlaub';
-    if (pool2.length > 0) workPlan[emp.id][pool2[(empIdx + 2) % pool2.length]] = 'urlaub';
-  });
-
-  // ── 1b. Rest days: distribute on Mon–Thu ONLY, staggered so coverage is always maintained
-  employees.forEach((emp, empIdx) => {
-    const avgHoursPerDay = emp.weeklyHours / 5;
-    const targetWorkDays = Math.round(emp.weeklyHours * 4.33 / avgHoursPerDay);
-    // Ruhetage ('closed') count as rest days too → subtract along with urlaub
-    const nonWorkDays = workPlan[emp.id].filter(s => s === 'urlaub' || s === 'closed').length;
-    const currentWorkDays = daysInMonth - nonWorkDays;
-    const neededRestDays = Math.max(0, currentWorkDays - targetWorkDays);
-
-    if (neededRestDays === 0) return;
-
-    // Candidates: Mon–Thu only, not already urlaub, spread evenly across the month
-    const candidates = restCandidateDays.filter(i => workPlan[emp.id][i] === 'work');
-
-    // Stagger by employee index so different employees rest on different days
-    const step = Math.max(1, Math.floor(candidates.length / neededRestDays));
-    let restAssigned = 0;
-    let ptr = empIdx % step;
-
-    while (restAssigned < neededRestDays && ptr < candidates.length) {
-      const dayIdx = candidates[ptr];
-      // Only rest if we won't drop below minStaff
-      const workingOnDay = employees.filter(e => workPlan[e.id][dayIdx] === 'work').length;
-      if (workingOnDay > config.minStaff) {
-        workPlan[emp.id][dayIdx] = 'off';
-        restAssigned++;
-      }
-      ptr += step;
-    }
-
-    // Fallback: if still need more rest days, re-scan less strictly
-    if (restAssigned < neededRestDays) {
-      for (const dayIdx of candidates) {
-        if (restAssigned >= neededRestDays) break;
-        if (workPlan[emp.id][dayIdx] === 'work') {
-          const workingOnDay = employees.filter(e => workPlan[e.id][dayIdx] === 'work').length;
-          if (workingOnDay > Math.max(1, config.minStaff)) {
-            workPlan[emp.id][dayIdx] = 'off';
-            restAssigned++;
-          }
-        }
-      }
-    }
-  });
-
-  // ─────────────────────────────────────────────────────────────
-  // PHASE 2: Assign shift times based on work plan
-  // ─────────────────────────────────────────────────────────────
-
+  // ── Tracking ──
   const minutesAssigned: Record<string, number> = {};
-  employees.forEach(emp => { minutesAssigned[emp.id] = 0; });
+  const weekDayCount: Record<string, Record<number, number>> = {};
+  activeEmployees.forEach(emp => { minutesAssigned[emp.id] = 0; weekDayCount[emp.id] = {}; });
+
+  // ── PRE-CALCULATE: How many work days each employee has available ──
+  const empWorkDays: Record<string, number> = {};
+  activeEmployees.forEach(emp => {
+    let count = 0;
+    dates.forEach((dateStr, dayIndex) => {
+      const meta = dayMeta[dayIndex];
+      if (meta.isRestaurantClosed) return;
+      if (vacationDays[emp.id].has(dayIndex)) return;
+      // count available days (up to 5 per week will be enforced later)
+      count++;
+    });
+    // Cap at approx 5 days/week × number of weeks
+    const uniqueWeeks = new Set(dates.map((_, i) => dayMeta[i].week)).size;
+    empWorkDays[emp.id] = Math.min(count, uniqueWeeks * 5);
+  });
+
+  // ── PRE-CALCULATE: Target minutes per work day for even distribution ──
+  const empDailyTarget: Record<string, number> = {};
+  activeEmployees.forEach(emp => {
+    const monthlyTargetMinutes = emp.weeklyHours * 4.33 * 60;
+    const workDays = empWorkDays[emp.id] || 20;
+    // Even split: total monthly target / available work days
+    empDailyTarget[emp.id] = Math.round(monthlyTargetMinutes / workDays);
+  });
+
+  // ── PRE-CALCULATE: Consistent daily headcount ──
+  // Total employee-days across the month ÷ total open days = avg headcount
+  const totalOpenDays = dayMeta.filter(m => !m.isRestaurantClosed).length;
+  const totalEmployeeDays = Object.values(empWorkDays).reduce((a, b) => a + b, 0);
+  const avgDailyHeadcount = totalOpenDays > 0 ? Math.round(totalEmployeeDays / totalOpenDays) : activeEmployees.length;
+  // Busy days get a boost (at least avgDailyHeadcount + 2, or dayN)
+  const busyDayHeadcount = Math.min(activeEmployees.length, Math.max(avgDailyHeadcount + 2, Math.max(lunchPeak, dinnerPeak)));
+  const normalDayHeadcount = Math.max(baseN, avgDailyHeadcount);
 
   const allEntries: DailyEntry[] = [];
 
+  // ── DAY-BY-DAY SCHEDULING ──
   dates.forEach((dateStr, dayIndex) => {
     const meta = dayMeta[dayIndex];
-    const isWeekend = meta.isWeekend;
-    const isFriday = meta.isFriday;
-    const isPeakDay = isWeekend || isFriday; // Extra staff on Fri/Sat/Sun
-
     const dayEntries: Record<string, DailyEntry> = {};
 
+    // Initialize entries for all employees
     employees.forEach(emp => {
-      const status = workPlan[emp.id][dayIndex];
+      const isVacation = vacationDays[emp.id]?.has(dayIndex);
+      const isHoliday = holidays.has(dateStr);
       dayEntries[emp.id] = {
-        employeeId: emp.id,
-        date: dateStr,
-        startTime: '',
-        pauseMinutes: 0,
-        endTime: '',
-        absenceCode: status === 'urlaub' ? 'U' : '',
-        remark: status === 'urlaub'
-          ? t('remark.vacation')
-          : status === 'closed'
-            ? t('remark.closedDay')
-            : '',
+        employeeId: emp.id, date: dateStr, startTime: '', pauseMinutes: 0, endTime: '',
+        absenceCode: isVacation ? 'U' : '',
+        remark: isHoliday ? t('remark.holiday') : isVacation ? t('remark.vacation') : meta.isRestaurantClosed ? t('remark.closedDay') : '',
       };
     });
 
-    // If restaurant is closed today (Ruhetag): push entries and skip shift assignment
     if (meta.isRestaurantClosed) {
-      Object.values(dayEntries).forEach(entry => allEntries.push(entry));
+      Object.values(dayEntries).forEach(e => allEntries.push(e));
       return;
     }
 
-    // Collect workers for today, sorted by remaining debt (highest debt → first)
-    const workers = employees
-      .filter(emp => workPlan[emp.id][dayIndex] === 'work')
+    const { openTimeDate, closeTimeDate, week } = meta;
+
+    // Target headcount for this day: consistent across the month
+    const isBusyDay = busyDays.has(meta.dow);
+    const targetHeadcount = isBusyDay ? busyDayHeadcount : normalDayHeadcount;
+
+    // ── Step 1: Select employees with standard 5-day/week limit ──
+    let allAvailable = activeEmployees.filter(emp => {
+      if (vacationDays[emp.id].has(dayIndex)) return false;
+      if ((weekDayCount[emp.id][week] || 0) >= 5) return false;
+      return true;
+    });
+
+    // ── Step 2: If not enough, relax to 6 days/week ──
+    if (allAvailable.length < targetHeadcount) {
+      allAvailable = activeEmployees.filter(emp => {
+        if (vacationDays[emp.id].has(dayIndex)) return false;
+        if ((weekDayCount[emp.id][week] || 0) >= 6) return false;
+        return true;
+      });
+    }
+
+    // Rank by RELATIVE debt (% remaining) — those who need hours most get priority
+    const ranked = allAvailable
       .map(emp => {
-        const targetTotal = emp.weeklyHours * 4.33 * 60;
-        const remainingWorkDays = workPlan[emp.id].slice(dayIndex).filter(s => s === 'work').length;
-        const debt = targetTotal - minutesAssigned[emp.id];
-        const targetToday = Math.max(120, Math.min(600, Math.round(debt / Math.max(1, remainingWorkDays))));
-        return { emp, debt, targetToday };
+        const target = emp.weeklyHours * 4.33 * 60;
+        const pctRemaining = target > 0 ? (target - minutesAssigned[emp.id]) / target : 0;
+        return { emp, pctRemaining, debt: target - minutesAssigned[emp.id] };
       })
-      .sort((a, b) => b.debt - a.debt);
+      .sort((a, b) => b.pctRemaining - a.pctRemaining);
 
-    // Use per-day open/close times
-    const { openTimeDate, closeTimeDate } = meta;
+    // ── SELECT: Pick top targetHeadcount employees (consistent daily count) ──
+    const selected = ranked.slice(0, Math.max(baseN, targetHeadcount));
 
-    workers.forEach(({ emp, targetToday }, idx) => {
+    // ── Assign shifts to selected employees ──
+    selected.forEach(({ emp }, idx) => {
       const entry = dayEntries[emp.id];
-      const netMinutes = targetToday;
 
-      // Determine initial pause based on target net work time
-      // Rule: net ≤ 8h → 30 min pause; net > 8h → 45 min pause
-      const initialPause = netMinutes > 480 ? 45 : 30;
+      // Use pre-calculated EVEN daily target
+      const targetNetMinutes = Math.max(90, Math.min(600, empDailyTarget[emp.id]));
 
-      let startTime: string;
+      // Stagger start times
+      const staggerMinutes = (idx % 8) * 15;
+      let startDate = roundTo15(new Date(openTimeDate.getTime() + staggerMinutes * 60000));
 
-      if (idx < config.minStaff) {
-        // Opening crew: stagger from open time
-        const startOffset = idx * 30;
-        const start = new Date(openTimeDate.getTime() + startOffset * 60000);
-        startTime = format(start, 'HH:mm');
-      } else if (isPeakDay) {
-        // Peak day extra staff: alternate lunch (11:30) and dinner (17:30) shifts
-        const isLunchShift = idx % 2 === 0;
-        const baseStr = isLunchShift ? '11:30' : '17:30';
-        const base = parse(baseStr, 'HH:mm', new Date());
-        const stagger = (Math.floor(idx / 2)) * 15;
-        const start = new Date(base.getTime() + stagger * 60000);
-        const actualStart = isAfter(openTimeDate, start) ? openTimeDate : start;
-        startTime = format(actualStart, 'HH:mm');
-      } else {
-        // Weekday extra: lean toward dinner shift coverage
-        const base = parse('17:30', 'HH:mm', new Date());
-        const stagger = (idx - config.minStaff) * 20;
-        const start = new Date(base.getTime() + stagger * 60000);
-        const actualStart = isAfter(openTimeDate, start) ? openTimeDate : start;
-        startTime = format(actualStart, 'HH:mm');
+      // Configurable peak hours
+      const lunchStart = config.lunchPeakStart || '12:00';
+      const dinnerStart = config.dinnerPeakStart || '18:00';
+
+      // For short shifts (< 4h), alternate between lunch peak and dinner peak
+      if (targetNetMinutes < 240 && idx % 2 === 1) {
+        const peakTime = parse(dinnerStart, 'HH:mm', new Date());
+        const candidate = roundTo15(new Date(peakTime.getTime() + staggerMinutes * 60000));
+        if (!isAfter(candidate, closeTimeDate)) {
+          startDate = candidate;
+        }
+      } else if (targetNetMinutes < 240 && idx % 2 === 0) {
+        // Start at lunch peak
+        const peakTime = parse(lunchStart, 'HH:mm', new Date());
+        const candidate = roundTo15(new Date(peakTime.getTime() + staggerMinutes * 60000));
+        if (!isAfter(candidate, closeTimeDate)) {
+          startDate = candidate;
+        }
       }
 
-      const startDate = parse(startTime, 'HH:mm', new Date());
-      let end = new Date(startDate.getTime() + (netMinutes + initialPause) * 60000);
-      end = new Date(Math.round(end.getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000));
-      if (isAfter(end, closeTimeDate)) end = closeTimeDate;
-      const endTime = format(end, 'HH:mm');
+      // Pause only for shifts > 6h
+      const estimatedPause = targetNetMinutes > 480 ? 45 : targetNetMinutes > 330 ? 30 : 0;
+      const grossMinutes = Math.min(targetNetMinutes + estimatedPause, 10 * 60);
+      let endDate = roundTo15(new Date(startDate.getTime() + grossMinutes * 60000));
 
-      const e = parse(endTime, 'HH:mm', new Date());
-      const grossDuration = differenceInMinutes(e, startDate);
+      if (isAfter(endDate, closeTimeDate)) {
+        endDate = closeTimeDate;
+      }
 
-      // Recalculate correct pause for the actual gross shift (after clamping)
-      let actualPause = initialPause;
-      const netWithInitial = grossDuration - initialPause;
-      if (netWithInitial > 480 && actualPause < 45) actualPause = 45;
-      else if (netWithInitial <= 480 && actualPause > 30) actualPause = 30;
+      const actualGross = differenceInMinutes(endDate, startDate);
 
-      if (grossDuration >= 90) {
-        entry.startTime = startTime;
-        entry.endTime = endTime;
-        entry.pauseMinutes = actualPause;
-        minutesAssigned[emp.id] += Math.max(0, grossDuration - actualPause);
+      if (actualGross < 60) {
+        // Too short — skip
+      } else {
+        const pause = actualGross > 510 ? 45 : actualGross > 360 ? 30 : 0;
+
+        entry.startTime = toHHMM(startDate);
+        entry.endTime = toHHMM(endDate);
+        entry.pauseMinutes = pause;
+
+        const netWorked = actualGross - pause;
+        minutesAssigned[emp.id] += Math.max(0, netWorked);
+
+        weekDayCount[emp.id][week] = (weekDayCount[emp.id][week] || 0) + 1;
       }
     });
 
@@ -510,12 +654,13 @@ export function analyzeScheduleWarnings(
       });
     }
 
-    // ── Check 3: Coverage gaps – only during PEAK HOURS
-    // Off-peak periods (15:00–17:00, after 21:30) are covered by the owner → no warning needed
-    // Peak windows: Lunch 11:30–15:00, Dinner 17:00–21:30
+    // ── Check 3: Coverage gaps – only during PEAK HOURS (configurable)
+    const lps = config.lunchPeakStart || '12:00', lpe = config.lunchPeakEnd || '15:00';
+    const dps = config.dinnerPeakStart || '18:00', dpe = config.dinnerPeakEnd || '21:00';
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
     const PEAK_WINDOWS = [
-      { start: 11 * 60 + 30, end: 15 * 60 },       // 11:30 – 15:00
-      { start: 17 * 60,       end: 21 * 60 + 30 },  // 17:00 – 21:30
+      { start: toMin(lps), end: toMin(lpe) },
+      { start: toMin(dps), end: toMin(dpe) },
     ];
 
     const openMinutes  = openTime.getHours() * 60 + openTime.getMinutes();
@@ -581,7 +726,7 @@ export function analyzeScheduleWarnings(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Schedule Optimizer: fix coverage gaps + balance hours
+// Schedule Optimizer: fix coverage gaps + balance hours to 95-98% accuracy
 // ─────────────────────────────────────────────────────────────
 
 export function optimizeSchedule(
@@ -612,18 +757,36 @@ export function optimizeSchedule(
       }, 0);
   };
 
-  // ── PHASE 1–3: Fix coverage gaps, understaffing ──
+  const getShiftInfo = (e: DailyEntry) => {
+    const s = parse(e.startTime, 'HH:mm', new Date());
+    const en = parse(e.endTime, 'HH:mm', new Date());
+    const sMin = s.getHours() * 60 + s.getMinutes();
+    const eMin = en.getHours() * 60 + en.getMinutes();
+    const gross = differenceInMinutes(en, s);
+    const net = gross - (e.pauseMinutes || 0);
+    return { sMin, eMin, gross, net };
+  };
+
+  const getDayLimits = (dateStr: string) => {
+    const dow = new Date(dateStr).getDay();
+    const oc = getDayOpenClose(config, dow);
+    const dOpen = parse(oc.openTime, 'HH:mm', new Date());
+    const dClose = parse(oc.closeTime, 'HH:mm', new Date());
+    return {
+      openMin: dOpen.getHours() * 60 + dOpen.getMinutes(),
+      closeMin: dClose.getHours() * 60 + dClose.getMinutes(),
+      closed: oc.closed,
+    };
+  };
+
+  // ── PHASE 1–3: Fix coverage gaps, understaffing (keep existing logic) ──
 
   Object.keys(byDate).sort().forEach(dateStr => {
     const dateObj = new Date(dateStr);
     const dow = dateObj.getDay();
     if (isDayClosed(config, dow)) return;
 
-    const dayOC = getDayOpenClose(config, dow);
-    const openTime = parse(dayOC.openTime, 'HH:mm', new Date());
-    const closeTime = parse(dayOC.closeTime, 'HH:mm', new Date());
-    const openMin = openTime.getHours() * 60 + openTime.getMinutes();
-    const closeMin = closeTime.getHours() * 60 + closeTime.getMinutes();
+    const { openMin, closeMin } = getDayLimits(dateStr);
 
     const PEAK_WINDOWS = [
       { start: Math.max(11 * 60 + 30, openMin), end: Math.min(15 * 60, closeMin) },
@@ -777,153 +940,207 @@ export function optimizeSchedule(
     }
   });
 
-  // ── PHASE 4: HOURS BALANCING — minimize deviation ──
-  // Tolerance: ±30 min. Up to 6 passes for convergence.
+  // ── PHASE 4: HOURS BALANCING — converge to 95-98% accuracy ──
+  // Tolerance per employee: 2% of monthly target (e.g. 48h/week → ±25 min; 5h/week → ±3 min)
+  // Up to 20 passes for convergence.
+  // Break rules: ≤8h30 gross → 30min pause; >8h30 gross → 45min pause
+  // Minimum shift: 2h (120 min) gross
 
-  const TOLERANCE = 30;
+  const MAX_PASSES = 20;
 
-  for (let pass = 0; pass < 6; pass++) {
+  // Helper: recalculate pause for a given gross duration
+  const correctPause = (gross: number) => gross > 510 ? 45 : 30;
+
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
     let changed = false;
 
+    // Calculate deviations for all employees
     const devs = employees.map(emp => {
       const target = emp.weeklyHours * 4.33 * 60;
       const actual = getMonthlyMinutes(emp.id);
-      return { emp, delta: actual - target };
+      const delta = actual - target; // positive = over, negative = under
+      // Tolerance: 2% of target, minimum 15 min
+      const tolerance = Math.max(15, Math.round(target * 0.02));
+      const pct = target > 0 ? (actual / target) * 100 : 100;
+      return { emp, delta, target, actual, tolerance, pct };
     }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
-    for (const { emp, delta } of devs) {
-      if (Math.abs(delta) <= TOLERANCE) continue;
+    // Check if all employees are within tolerance (95-98% range)
+    const allConverged = devs.every(d => Math.abs(d.delta) <= d.tolerance);
+    if (allConverged) break;
+
+    for (const { emp, delta, tolerance } of devs) {
+      if (Math.abs(delta) <= tolerance) continue;
 
       const empEntries = optimized.filter(e => e.employeeId === emp.id);
 
-      if (delta > TOLERANCE) {
+      if (delta > tolerance) {
+        // ═══════════════════════════════════════════
         // OVER target → reduce hours
+        // ═══════════════════════════════════════════
         let remain = delta;
 
-        // A) Shorten longest shifts
-        const shifts = empEntries
+        // Strategy A: Remove entire shifts (shortest first)
+        const shortShifts = empEntries
           .filter(e => e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode))
-          .map(e => {
-            const s = parse(e.startTime, 'HH:mm', new Date());
-            const en = parse(e.endTime, 'HH:mm', new Date());
-            const net = differenceInMinutes(en, s) - (e.pauseMinutes || 0);
-            return { entry: e, net, sMin: s.getHours() * 60 + s.getMinutes(), eMin: en.getHours() * 60 + en.getMinutes() };
-          })
-          .sort((a, b) => b.net - a.net);
+          .map(e => ({ entry: e, ...getShiftInfo(e) }))
+          .sort((a, b) => a.net - b.net);
 
-        for (const sh of shifts) {
-          if (remain <= TOLERANCE) break;
-          const trim = Math.floor(Math.min(remain, sh.net - 120) / 15) * 15;
-          if (trim < 15) continue;
-
+        for (const sh of shortShifts) {
+          if (remain <= tolerance) break;
           const dayE = byDate[sh.entry.date] || [];
-          const others = dayE.filter(e => e.employeeId !== emp.id && e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)).length;
+          const others = dayE.filter(e =>
+            e.employeeId !== emp.id && e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)
+          ).length;
+
           if (others >= 1) {
-            const newEnd = sh.eMin - trim;
-            if (newEnd > sh.sMin + 90) {
-              sh.entry.endTime = toHHMM(newEnd);
-              const newNet = (newEnd - sh.sMin) - sh.entry.pauseMinutes;
-              if (newNet <= 480 && sh.entry.pauseMinutes > 30) sh.entry.pauseMinutes = 30;
-              remain -= trim;
-              changed = true;
-            }
+            remain -= sh.net;
+            sh.entry.startTime = '';
+            sh.entry.endTime = '';
+            sh.entry.pauseMinutes = 0;
+            sh.entry.absenceCode = '';
+            sh.entry.remark = '';
+            changed = true;
           }
         }
 
-        // B) Remove shortest shifts (→ rest day)
-        if (remain > 60) {
-          const short = empEntries
+        // Strategy B: Shorten remaining longest shifts
+        if (remain > tolerance) {
+          const longShifts = empEntries
             .filter(e => e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode))
-            .map(e => {
-              const s = parse(e.startTime, 'HH:mm', new Date());
-              const en = parse(e.endTime, 'HH:mm', new Date());
-              return { entry: e, net: differenceInMinutes(en, s) - (e.pauseMinutes || 0) };
-            })
-            .sort((a, b) => a.net - b.net);
+            .map(e => ({ entry: e, ...getShiftInfo(e) }))
+            .sort((a, b) => b.net - a.net);
 
-          for (const sh of short) {
-            if (remain <= TOLERANCE) break;
+          for (const sh of longShifts) {
+            if (remain <= tolerance) break;
+            // Min 2h gross after trimming
+            const minGross = 120;
+            const maxTrimNet = sh.net - (minGross - sh.entry.pauseMinutes);
+            const trim = Math.floor(Math.min(remain, Math.max(0, maxTrimNet)) / 15) * 15;
+            if (trim < 15) continue;
+
             const dayE = byDate[sh.entry.date] || [];
-            const others = dayE.filter(e => e.employeeId !== emp.id && e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)).length;
-            if (others >= config.minStaff) {
-              remain -= sh.net;
-              sh.entry.startTime = '';
-              sh.entry.endTime = '';
-              sh.entry.pauseMinutes = 0;
-              sh.entry.absenceCode = '';
-              sh.entry.remark = '';
-              changed = true;
+            const others = dayE.filter(e =>
+              e.employeeId !== emp.id && e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)
+            ).length;
+
+            if (others >= 1) {
+              const newEnd = sh.eMin - trim;
+              const newGross = newEnd - sh.sMin;
+              if (newGross >= minGross) {
+                sh.entry.endTime = toHHMM(newEnd);
+                sh.entry.pauseMinutes = correctPause(newGross);
+                remain -= trim;
+                changed = true;
+              }
             }
           }
         }
 
-      } else {
+      } else if (delta < -tolerance) {
+        // ═══════════════════════════════════════════
         // UNDER target → add hours
+        // ═══════════════════════════════════════════
         let remain = Math.abs(delta);
 
-        // A) Extend shortest shifts
+         // Strategy A: Extend existing shortest shifts first
         const shifts = empEntries
           .filter(e => e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode))
-          .map(e => {
-            const s = parse(e.startTime, 'HH:mm', new Date());
-            const en = parse(e.endTime, 'HH:mm', new Date());
-            return { entry: e, gross: differenceInMinutes(en, s), sMin: s.getHours() * 60 + s.getMinutes(), eMin: en.getHours() * 60 + en.getMinutes() };
-          })
+          .map(e => ({ entry: e, ...getShiftInfo(e) }))
           .sort((a, b) => a.gross - b.gross);
 
-        for (const sh of shifts) {
-          if (remain <= TOLERANCE) break;
-          const dow = new Date(sh.entry.date).getDay();
-          const oc = getDayOpenClose(config, dow);
-          const dOpen = parse(oc.openTime, 'HH:mm', new Date());
-          const dClose = parse(oc.closeTime, 'HH:mm', new Date());
-          const dOpenMin = dOpen.getHours() * 60 + dOpen.getMinutes();
-          const dCloseMin = dClose.getHours() * 60 + dClose.getMinutes();
-          const maxGross = 10 * 60 + 45;
+        const maxGross = 10 * 60; // Max 10h gross
+        const maxNet = 600;       // Max 10h net (German law)
 
-          // Extend at end
-          const extEnd = Math.floor(Math.min(remain, dCloseMin - sh.eMin, maxGross - sh.gross) / 15) * 15;
+        for (const sh of shifts) {
+          if (remain <= tolerance) break;
+          const { openMin: dOpenMin, closeMin: dCloseMin } = getDayLimits(sh.entry.date);
+
+          // Check net limit: don't exceed 10h net
+          const currentNet = sh.gross - (sh.entry.pauseMinutes || 0);
+          const netRoom = maxNet - currentNet;
+          if (netRoom <= 0) continue;
+
+          // Extend at end (capped by close time, max gross, and net limit)
+          const extEnd = Math.floor(Math.min(remain, dCloseMin - sh.eMin, maxGross - sh.gross, netRoom) / 15) * 15;
           if (extEnd >= 15) {
             sh.entry.endTime = toHHMM(sh.eMin + extEnd);
             sh.eMin += extEnd; sh.gross += extEnd;
-            if (sh.gross - sh.entry.pauseMinutes > 480 && sh.entry.pauseMinutes < 45) sh.entry.pauseMinutes = 45;
+            sh.entry.pauseMinutes = correctPause(sh.gross);
             remain -= extEnd;
             changed = true;
           }
-          if (remain <= TOLERANCE) break;
-          // Extend at start
-          const extStart = Math.floor(Math.min(remain, sh.sMin - dOpenMin, maxGross - sh.gross) / 15) * 15;
+          if (remain <= tolerance) break;
+
+          // Extend at start (same caps)
+          const currentNet2 = sh.gross - (sh.entry.pauseMinutes || 0);
+          const netRoom2 = maxNet - currentNet2;
+          const extStart = Math.floor(Math.min(remain, sh.sMin - dOpenMin, maxGross - sh.gross, netRoom2) / 15) * 15;
           if (extStart >= 15) {
             sh.entry.startTime = toHHMM(sh.sMin - extStart);
             sh.sMin -= extStart; sh.gross += extStart;
-            if (sh.gross - sh.entry.pauseMinutes > 480 && sh.entry.pauseMinutes < 45) sh.entry.pauseMinutes = 45;
+            sh.entry.pauseMinutes = correctPause(sh.gross);
             remain -= extStart;
             changed = true;
           }
         }
 
-        // B) Convert off days to work days
-        if (remain > 60) {
-          const offDays = empEntries.filter(e => !e.startTime && !e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode));
+        // Strategy B: Convert off days to work days
+        if (remain > tolerance) {
+          const offDays = empEntries.filter(e =>
+            !e.startTime && !e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)
+          );
+
+          // Helper: check 11h rest between adjacent shifts
+          const getAdjacentShiftEnd = (dateStr: string, empId: string, direction: 'prev' | 'next'): number | null => {
+            const entries = optimized.filter(e =>
+              e.employeeId === empId && e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)
+            ).sort((a, b) => a.date.localeCompare(b.date));
+
+            const idx = entries.findIndex(e => e.date === dateStr);
+            if (direction === 'prev' && idx > 0) {
+              const prev = entries[idx - 1];
+              const end = parse(prev.endTime, 'HH:mm', new Date());
+              return end.getHours() * 60 + end.getMinutes();
+            }
+            if (direction === 'next' && idx >= 0 && idx < entries.length - 1) {
+              const next = entries[idx + 1];
+              const start = parse(next.startTime, 'HH:mm', new Date());
+              return start.getHours() * 60 + start.getMinutes();
+            }
+            return null;
+          };
+
+          // Count work days per ISO week for this employee
+          const weekDays: Record<number, number> = {};
+          empEntries.filter(e => e.startTime && e.endTime).forEach(e => {
+            const w = getWeek(new Date(e.date), { weekStartsOn: 1 });
+            weekDays[w] = (weekDays[w] || 0) + 1;
+          });
+
           for (const entry of offDays) {
-            if (remain <= TOLERANCE) break;
-            const dow = new Date(entry.date).getDay();
-            if (isDayClosed(config, dow)) continue;
-            const oc = getDayOpenClose(config, dow);
-            const dOpen = parse(oc.openTime, 'HH:mm', new Date());
-            const dClose = parse(oc.closeTime, 'HH:mm', new Date());
-            const dOpenMin = dOpen.getHours() * 60 + dOpen.getMinutes();
-            const dCloseMin = dClose.getHours() * 60 + dClose.getMinutes();
-            const targetNet = Math.min(remain, 480);
-            const pause = 30;
-            const gross = Math.min(targetNet + pause, dCloseMin - dOpenMin);
-            if (gross >= 90) {
+            if (remain <= tolerance) break;
+            const { openMin: dOpenMin, closeMin: dCloseMin, closed } = getDayLimits(entry.date);
+            if (closed) continue;
+
+            // Check 5 days/week limit
+            const entryWeek = getWeek(new Date(entry.date), { weekStartsOn: 1 });
+            if ((weekDays[entryWeek] || 0) >= 5) continue;
+
+            // Target: fill remaining debt but max 10h gross
+            const targetNet = Math.min(remain, 570); // max ~9.5h net (10h gross - 30min pause)
+            const estGross = targetNet + 30;
+            const gross = Math.min(estGross, maxGross, dCloseMin - dOpenMin);
+
+            if (gross >= 120) { // Min 2h gross
+              const pause = correctPause(gross);
               entry.startTime = toHHMM(dOpenMin);
               entry.endTime = toHHMM(dOpenMin + gross);
               entry.pauseMinutes = pause;
               entry.absenceCode = '';
               entry.remark = '';
               remain -= (gross - pause);
+              weekDays[entryWeek] = (weekDays[entryWeek] || 0) + 1;
               changed = true;
             }
           }

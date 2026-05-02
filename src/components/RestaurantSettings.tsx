@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { RestaurantConfig, DayScheduleConfig } from '../types';
 import { Clock, Users, Download, Upload, Database, BedDouble, Save, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../i18n';
+import { BUNDESLAENDER, BUNDESLAND_NAMES } from '../lib/utils';
 
 interface RestaurantSettingsProps {
   config: RestaurantConfig;
@@ -140,6 +141,130 @@ export function RestaurantSettings({ config, onChange, onDownloadBackup, onUploa
               <input type="number" min="1" max="10" value={config.minStaff}
                 onChange={(e) => handleGlobalChange('minStaff', Number(e.target.value))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('settings.bundesland')}</label>
+            <select value={config.bundesland || ''}
+              onChange={(e) => handleGlobalChange('bundesland', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm">
+              <option value="">{t('settings.selectBundesland')}</option>
+              {BUNDESLAENDER.map(bl => (
+                <option key={bl} value={bl}>{BUNDESLAND_NAMES[bl]}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* ── Headcount per time slot ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-100">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('settings.lunchPeak')}</label>
+            <input type="number" min="1" max="12"
+              value={config.lunchPeakHeadcount ?? (config.minStaff + 2)}
+              onChange={(e) => handleGlobalChange('lunchPeakHeadcount', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('settings.dinnerPeak')}</label>
+            <input type="number" min="1" max="12"
+              value={config.dinnerPeakHeadcount ?? (config.minStaff + 2)}
+              onChange={(e) => handleGlobalChange('dinnerPeakHeadcount', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('settings.baseline')}</label>
+            <input type="number" min="1" max="10"
+              value={config.baselineHeadcount ?? config.minStaff}
+              onChange={(e) => handleGlobalChange('baselineHeadcount', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">{t('settings.closing')}</label>
+            <input type="number" min="1" max="6"
+              value={config.closingHeadcount ?? 2}
+              onChange={(e) => handleGlobalChange('closingHeadcount', Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-sm" />
+          </div>
+        </div>
+
+        {/* ── Busy Days & Peak Hours ── */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            🔥 {language === 'de' ? 'Stoßzeiten & Busy Days' : 'Ngày & Giờ Đông Khách'}
+          </h3>
+
+          {/* Busy days selection */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-2">
+              {language === 'de' ? 'Tage mit den meisten Gästen (klicken)' : 'Ngày đông khách nhất (bấm chọn)'}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {DAYS_OF_WEEK.map(({ dow, viLabel, deLabel, short }) => {
+                const isBusy = (config.busyDays || []).includes(dow);
+                const isClosed = draftSchedules[dow]?.closed;
+                return (
+                  <button
+                    key={dow}
+                    type="button"
+                    disabled={isClosed}
+                    onClick={() => {
+                      const current = config.busyDays || [];
+                      const next = isBusy ? current.filter(d => d !== dow) : [...current, dow];
+                      handleGlobalChange('busyDays', next);
+                    }}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold transition-all border ${
+                      isClosed
+                        ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                        : isBusy
+                          ? 'bg-red-500 text-white border-red-500 shadow-sm'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-red-300 hover:bg-red-50'
+                    }`}
+                  >
+                    {short} {isBusy && '🔥'}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {language === 'de'
+                ? 'An Busy Days werden mehr Mitarbeiter eingeplant.'
+                : 'Ngày đông khách sẽ được xếp nhiều nhân viên hơn.'}
+            </p>
+          </div>
+
+          {/* Peak hours config */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Lunch peak */}
+            <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
+              <label className="block text-xs font-bold text-orange-700 uppercase mb-2">
+                🍽 {language === 'de' ? 'Mittagsstoßzeit' : 'Giờ cao điểm trưa'}
+              </label>
+              <div className="flex items-center gap-2">
+                <input type="time" value={config.lunchPeakStart || '12:00'}
+                  onChange={(e) => handleGlobalChange('lunchPeakStart', e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-orange-200 rounded text-sm outline-none focus:ring-1 focus:ring-orange-400" />
+                <span className="text-gray-400 text-sm">→</span>
+                <input type="time" value={config.lunchPeakEnd || '15:00'}
+                  onChange={(e) => handleGlobalChange('lunchPeakEnd', e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-orange-200 rounded text-sm outline-none focus:ring-1 focus:ring-orange-400" />
+              </div>
+            </div>
+
+            {/* Dinner peak */}
+            <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+              <label className="block text-xs font-bold text-purple-700 uppercase mb-2">
+                🌙 {language === 'de' ? 'Abendstoßzeit' : 'Giờ cao điểm tối'}
+              </label>
+              <div className="flex items-center gap-2">
+                <input type="time" value={config.dinnerPeakStart || '18:00'}
+                  onChange={(e) => handleGlobalChange('dinnerPeakStart', e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-purple-200 rounded text-sm outline-none focus:ring-1 focus:ring-purple-400" />
+                <span className="text-gray-400 text-sm">→</span>
+                <input type="time" value={config.dinnerPeakEnd || '21:00'}
+                  onChange={(e) => handleGlobalChange('dinnerPeakEnd', e.target.value)}
+                  className="flex-1 px-2 py-1.5 border border-purple-200 rounded text-sm outline-none focus:ring-1 focus:ring-purple-400" />
+              </div>
             </div>
           </div>
         </div>

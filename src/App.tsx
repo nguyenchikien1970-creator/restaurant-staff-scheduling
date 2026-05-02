@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { MasterData, DailyEntry, CalculatedEntry, MonthlySummaryData, Employee, RestaurantConfig } from './types';
-import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert } from './lib/utils';
+import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert, calculateAllEmployeesAccuracy, EmployeeAccuracy } from './lib/utils';
 import { StaffManagement } from './components/StaffManagement';
 
 // Lazy-loaded components — only fetched when user navigates to them
@@ -8,61 +8,43 @@ const MasterDataForm = React.lazy(() => import('./components/MasterDataForm').th
 const DailyEntriesTable = React.lazy(() => import('./components/DailyEntriesTable').then(m => ({ default: m.DailyEntriesTable })));
 const MonthlySummary = React.lazy(() => import('./components/MonthlySummary').then(m => ({ default: m.MonthlySummary })));
 const RestaurantSettings = React.lazy(() => import('./components/RestaurantSettings').then(m => ({ default: m.RestaurantSettings })));
+const DailyOverview = React.lazy(() => import('./components/DailyOverview').then(m => ({ default: m.DailyOverview })));
 import { LoginPage } from './components/LoginPage';
-import { supabase } from './lib/supabaseClient';
-import { useSupabaseData } from './hooks/useSupabaseData';
-import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2, RefreshCw } from 'lucide-react';
+import { useLocalData } from './hooks/useLocalData';
+import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2, RefreshCw, LayoutGrid } from 'lucide-react';
 import { useLanguage } from './i18n';
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
 
-  // ── Auth state (Supabase) ──
+  // ── Auth state (localStorage) ──
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Check existing session on mount
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        setUserEmail(session.user.email || '');
-        setUserId(session.user.id);
-      }
-      setAuthLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        setUserEmail(session.user.email || '');
-        setUserId(session.user.id);
-      } else {
-        setIsLoggedIn(false);
-        setUserEmail('');
-        setUserId(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    const savedEmail = localStorage.getItem('auth_email');
+    if (savedEmail) {
+      setIsLoggedIn(true);
+      setUserEmail(savedEmail);
+    }
+    setAuthLoading(false);
   }, []);
 
-  const handleLogin = (email: string, uid: string) => {
+  const handleLogin = (email: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
-    setUserId(uid);
+    localStorage.setItem('auth_email', email);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('auth_email');
     setIsLoggedIn(false);
     setUserEmail('');
-    setUserId(null);
   };
 
-  // ── Supabase Data Hook ──
+  // ── Local Data Hook ──
   const {
     loading: dataLoading,
     loadError,
@@ -71,24 +53,30 @@ export default function App() {
     masterData, setMasterData,
     entries, setEntries,
     saveConfig, saveEmployee, addEmployee, deleteEmployee, saveEntries,
-    loadData,
-  } = useSupabaseData(userId);
+    loadData, loadPreviousMonthEntries,
+  } = useLocalData();
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'staff' | 'settings' | 'schedule'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'settings' | 'schedule' | 'daily'>('staff');
   const [scheduleAlerts, setScheduleAlerts] = useState<ScheduleAlert[]>([]);
   const [alertsExpanded, setAlertsExpanded] = useState(true);
+  const [overviewExpanded, setOverviewExpanded] = useState(false);
+
+  // Compute accuracy for all employees (memoized by entries)
+  const employeeAccuracies: EmployeeAccuracy[] = React.useMemo(() => {
+    if (entries.length === 0 || masterData.employees.length === 0) return [];
+    return calculateAllEmployeesAccuracy(masterData.employees, entries);
+  }, [entries, masterData.employees]);
 
   // Auto-save config when masterData changes (debounced)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!userId) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       saveConfig(masterData);
     }, 1500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [masterData.companyName, masterData.restaurantConfig, userId]);
+  }, [masterData.companyName, masterData.restaurantConfig]);
 
   const handleMasterDataChange = (newData: MasterData) => setMasterData(newData);
 
@@ -182,17 +170,135 @@ export default function App() {
 
   const handleOptimizeSchedule = () => {
     if (entries.length === 0) return;
-    const optimizedEntries = optimizeSchedule(
-      entries, masterData.employees, masterData.restaurantConfig, t, language
-    );
-    setEntries(optimizedEntries);
-    saveEntries(optimizedEntries, masterData.month, masterData.year);
-    // Re-analyze after optimization
+    let current = [...entries];
+    let passes = 0;
+    let prevAvg = -1;
+
+    // Run until convergence (no improvement) or max 20 safety limit
+    for (let i = 0; i < 20; i++) {
+      passes++;
+      current = optimizeSchedule(
+        current, masterData.employees, masterData.restaurantConfig, t, language
+      );
+      const accs = calculateAllEmployeesAccuracy(masterData.employees, current);
+      const avgAcc = accs.length > 0 ? Math.round(accs.reduce((s, a) => s + a.accuracy, 0) / accs.length) : 0;
+      // Stop if target reached or no improvement
+      if (avgAcc >= 98 || avgAcc <= prevAvg) break;
+      prevAvg = avgAcc;
+    }
+
+    setEntries(current);
+    saveEntries(current, masterData.month, masterData.year);
     const newAlerts = analyzeScheduleWarnings(
-      optimizedEntries, masterData.employees, masterData.restaurantConfig, t, language
+      current, masterData.employees, masterData.restaurantConfig, t, language
     );
     setScheduleAlerts(newAlerts);
     setAlertsExpanded(true);
+
+    // Show result
+    const finalAccs = calculateAllEmployeesAccuracy(masterData.employees, current);
+    const avgFinal = finalAccs.length > 0 ? Math.round(finalAccs.reduce((s, a) => s + a.accuracy, 0) / finalAccs.length) : 0;
+    alert(t('schedule.optimizeResult').replace('{passes}', passes.toString()).replace('{accuracy}', avgFinal.toString()));
+  };
+
+  const handleCheckErrors = () => {
+    if (entries.length === 0) return;
+    const alerts = analyzeScheduleWarnings(
+      entries, masterData.employees, masterData.restaurantConfig, t, language
+    );
+    setScheduleAlerts(alerts);
+    setAlertsExpanded(true);
+    if (alerts.length === 0) {
+      alert(t('schedule.noAlerts'));
+    }
+  };
+
+  const handleCopyPreviousMonth = async () => {
+    const prevEntries = await loadPreviousMonthEntries(masterData.month, masterData.year);
+    if (prevEntries.length === 0) {
+      alert(t('schedule.copyNoData'));
+      return;
+    }
+    // Map previous month dates to current month: keep employee, times, but update date
+    const currentDates = generateMonthDates(masterData.month, masterData.year);
+    const mapped: DailyEntry[] = [];
+    const empGroups: Record<string, DailyEntry[]> = {};
+    prevEntries.forEach(e => {
+      if (!empGroups[e.employeeId]) empGroups[e.employeeId] = [];
+      empGroups[e.employeeId].push(e);
+    });
+    Object.entries(empGroups).forEach(([empId, prevEmpEntries]) => {
+      currentDates.forEach((dateStr, i) => {
+        const src = prevEmpEntries[i % prevEmpEntries.length];
+        mapped.push({ ...src, date: dateStr, employeeId: empId });
+      });
+    });
+    setEntries(mapped);
+    saveEntries(mapped, masterData.month, masterData.year);
+    alert(t('schedule.copySuccess'));
+  };
+
+  const handlePrintWeek = () => {
+    const dates = generateMonthDates(masterData.month, masterData.year);
+    const emps = masterData.employees.filter(e => e.isActive !== false);
+    // Build weekly grid
+    let html = `<html><head><title>Wochenplan</title><style>
+      @page { size: landscape; margin: 10mm; }
+      body { font-family: Arial, sans-serif; font-size: 10px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+      th, td { border: 1px solid #333; padding: 3px 5px; text-align: center; }
+      th { background: #f0f0f0; font-weight: bold; }
+      .name { text-align: left; font-weight: bold; min-width: 100px; }
+      h2 { margin: 4px 0; font-size: 13px; }
+      .absence { color: #c00; font-weight: bold; }
+    </style></head><body>`;
+    html += `<h2>${masterData.companyName} — ${masterData.month}/${masterData.year}</h2>`;
+
+    // Group by weeks
+    const weeks: string[][] = [];
+    let currentWeek: string[] = [];
+    dates.forEach((d, i) => {
+      const dow = new Date(d).getDay();
+      currentWeek.push(d);
+      if (dow === 0 || i === dates.length - 1) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    });
+
+    const dayLabels = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+    weeks.forEach((weekDates, wi) => {
+      html += `<table><tr><th class="name">Mitarbeiter</th>`;
+      weekDates.forEach(d => {
+        const dt = new Date(d);
+        html += `<th>${dayLabels[dt.getDay()]} ${dt.getDate()}.${dt.getMonth() + 1}</th>`;
+      });
+      html += `</tr>`;
+      emps.forEach(emp => {
+        html += `<tr><td class="name">${emp.name}</td>`;
+        weekDates.forEach(d => {
+          const entry = entries.find(e => e.employeeId === emp.id && e.date === d);
+          if (!entry || (!entry.startTime && !entry.absenceCode)) {
+            html += `<td>—</td>`;
+          } else if (entry.absenceCode) {
+            html += `<td class="absence">${entry.absenceCode}</td>`;
+          } else {
+            html += `<td>${entry.startTime}-${entry.endTime}</td>`;
+          }
+        });
+        html += `</tr>`;
+      });
+      html += `</table>`;
+    });
+
+    html += `</body></html>`;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.print();
+    }
   };
 
   const handleEntryChange = (index: number, updatedEntry: DailyEntry) => {
@@ -386,6 +492,13 @@ export default function App() {
             <Calendar size={18} />
             {t('tab.schedule')}
           </button>
+          <button
+            onClick={() => setActiveTab('daily')}
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'daily' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            <LayoutGrid size={18} />
+            {t('tab.dailyOverview')}
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -495,18 +608,120 @@ export default function App() {
 
               {masterData.employees.length > 0 ? (
                 <>
-                  <div className="flex flex-wrap gap-2 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-                    <span className="text-sm font-medium text-gray-500 w-full mb-2">{t('schedule.selectEmployee')}</span>
-                    {masterData.employees.map(emp => (
-                      <button
-                        key={emp.id}
-                        onClick={() => setSelectedEmployeeId(emp.id)}
-                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${selectedEmployeeId === emp.id ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      >
-                        {emp.name}
-                      </button>
-                    ))}
+                  {/* ── Schedule Action Buttons ── */}
+                  <div className="flex flex-wrap gap-2 p-3 bg-white rounded-lg shadow-sm border border-gray-200">
+                    <button
+                      onClick={handleGenerateSchedule}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      <Calendar size={16} />
+                      {t('settings.generateSchedule')}
+                    </button>
+                    <button
+                      onClick={handleCheckErrors}
+                      disabled={entries.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors text-sm font-medium disabled:bg-gray-300"
+                    >
+                      <AlertTriangle size={16} />
+                      {t('schedule.checkErrors')}
+                    </button>
+                    <button
+                      onClick={handleOptimizeSchedule}
+                      disabled={entries.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium disabled:bg-gray-300"
+                    >
+                      <Wrench size={16} />
+                      {t('schedule.optimize')}
+                    </button>
+                    <button
+                      onClick={handleCopyPreviousMonth}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm font-medium"
+                    >
+                      <RefreshCw size={16} />
+                      {t('schedule.copyPrevMonth')}
+                    </button>
+                    <button
+                      onClick={handlePrintWeek}
+                      disabled={entries.length === 0}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm font-medium disabled:bg-gray-300"
+                    >
+                      <FileSpreadsheet size={16} />
+                      {t('schedule.printWeek')}
+                    </button>
                   </div>
+
+                  <div className="flex flex-wrap gap-2 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="flex items-center justify-between w-full mb-2">
+                      <span className="text-sm font-medium text-gray-500">{t('schedule.selectEmployee')}</span>
+                      {employeeAccuracies.length > 0 && (
+                        <button
+                          onClick={() => setOverviewExpanded(!overviewExpanded)}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                        >
+                          {overviewExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          {t('schedule.toggleOverview')}
+                        </button>
+                      )}
+                    </div>
+                    {masterData.employees.map(emp => {
+                      const acc = employeeAccuracies.find(a => a.employeeId === emp.id);
+                      const pct = acc?.accuracy ?? 0;
+                      const badge = pct >= 98 ? 'bg-green-100 text-green-700' : pct >= 95 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
+                      return (
+                        <button
+                          key={emp.id}
+                          onClick={() => setSelectedEmployeeId(emp.id)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5 ${selectedEmployeeId === emp.id ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        >
+                          {emp.name}
+                          {acc && entries.length > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${selectedEmployeeId === emp.id ? 'bg-white/20 text-white' : badge}`}>
+                              {pct}%
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Overview table (collapsible) ── */}
+                  {overviewExpanded && employeeAccuracies.length > 0 && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                          <tr>
+                            <th className="px-3 py-2 text-left">{t('staff.name')}</th>
+                            <th className="px-3 py-2 text-right">{t('staff.hoursPerWeek')}</th>
+                            <th className="px-3 py-2 text-right">{t('summary.targetHours')}</th>
+                            <th className="px-3 py-2 text-right">{t('summary.actualHours')}</th>
+                            <th className="px-3 py-2 text-right">{t('summary.difference')}</th>
+                            <th className="px-3 py-2 text-center">%</th>
+                            <th className="px-3 py-2 text-center">U</th>
+                            <th className="px-3 py-2 text-center">K</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {employeeAccuracies.map(a => {
+                            const color = a.accuracy >= 98 ? 'text-green-600' : a.accuracy >= 95 ? 'text-yellow-600' : 'text-red-600';
+                            return (
+                              <tr key={a.employeeId} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedEmployeeId(a.employeeId)}>
+                                <td className="px-3 py-2 font-medium">{a.name}</td>
+                                <td className="px-3 py-2 text-right text-gray-500">{a.weeklyHours.toFixed(1)}</td>
+                                <td className="px-3 py-2 text-right">{a.targetHours.toFixed(1)}</td>
+                                <td className="px-3 py-2 text-right font-medium">{a.actualHours.toFixed(1)}</td>
+                                <td className={`px-3 py-2 text-right font-medium ${a.difference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {a.difference >= 0 ? '+' : ''}{a.difference.toFixed(1)}
+                                </td>
+                                <td className={`px-3 py-2 text-center font-bold ${color}`}>{a.accuracy}%</td>
+                                <td className="px-3 py-2 text-center text-gray-500">{a.vacationDays}</td>
+                                <td className="px-3 py-2 text-center text-gray-500">{a.sickDays}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
 
                   {selectedEmployee ? (
                     <div className="space-y-6">
@@ -516,7 +731,7 @@ export default function App() {
                           {t('schedule.contract')} <span className="font-bold text-gray-900">{selectedEmployee.weeklyHours.toFixed(2).replace('.', ',')}{t('schedule.hPerWeek')}</span>
                         </div>
                       </div>
-                      <MonthlySummary summary={summary} weeklyHours={selectedEmployee.weeklyHours} />
+                      <MonthlySummary summary={summary} weeklyHours={selectedEmployee.weeklyHours} contractType={selectedEmployee.contractType} hourlyWage={selectedEmployee.hourlyWage} />
                       <DailyEntriesTable entries={calculatedEntries} onChange={handleEntryChange} onCopyPrevious={handleCopyPrevious} />
                     </div>
                   ) : (
@@ -530,6 +745,20 @@ export default function App() {
                   {t('schedule.noEmployees')}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'daily' && (
+            <div className="p-4">
+              <DailyOverview
+                entries={entries}
+                employees={masterData.employees}
+                config={masterData.restaurantConfig}
+                month={masterData.month}
+                year={masterData.year}
+                t={t}
+                language={language}
+              />
             </div>
           )}
         </div>

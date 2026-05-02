@@ -54,9 +54,12 @@ export function DailyEntriesTable({ entries, onChange, onCopyPrevious }: Props) 
               const dateObj = new Date(entry.date);
               const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
               const isFullAbsence = ['K', 'U', 'UU', 'F'].includes(entry.absenceCode);
+              const hasErrors = entry.warnings.some(w => w.includes('over10h') || w.includes('restUnder11h'));
+              const hasWarnings = entry.warnings.length > 0;
+              const rowBg = hasErrors ? 'bg-red-50' : hasWarnings ? 'bg-yellow-50' : isWeekend ? 'bg-gray-50' : '';
 
               return (
-                <tr key={entry.date} className={`${isWeekend ? 'bg-gray-50' : ''} hover:bg-blue-50 transition-colors`}>
+                <tr key={entry.date} className={`${rowBg} hover:bg-blue-50 transition-colors`}>
                   <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
                     {format(dateObj, 'EE, dd.MM.', { locale: dateLocale })}
                   </td>
@@ -85,15 +88,36 @@ export function DailyEntriesTable({ entries, onChange, onCopyPrevious }: Props) 
                     {entry.durationTime}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <select
-                      className={`w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-1 border ${entry.absenceCode ? 'bg-yellow-50 font-medium' : ''}`}
-                      value={entry.absenceCode}
-                      onChange={(e) => onChange(index, { ...entry, absenceCode: e.target.value as AbsenceCode })}
-                    >
-                      {ABSENCE_CODE_KEYS.map(c => (
-                        <option key={c.value} value={c.value}>{t(c.key)}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-1">
+                      <select
+                        className={`flex-1 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-1 border ${entry.absenceCode ? 'bg-yellow-50 font-medium' : ''}`}
+                        value={entry.absenceCode}
+                        onChange={(e) => onChange(index, { ...entry, absenceCode: e.target.value as AbsenceCode })}
+                      >
+                        {ABSENCE_CODE_KEYS.map(c => (
+                          <option key={c.value} value={c.value}>{t(c.key)}</option>
+                        ))}
+                      </select>
+                      <div className="flex gap-0.5">
+                        {([
+                          { code: 'K' as AbsenceCode, color: 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200', label: 'K' },
+                          { code: 'U' as AbsenceCode, color: 'bg-green-100 text-green-700 hover:bg-green-200', label: 'U' },
+                          { code: 'UU' as AbsenceCode, color: 'bg-orange-100 text-orange-700 hover:bg-orange-200', label: 'UU' },
+                          { code: 'F' as AbsenceCode, color: 'bg-purple-100 text-purple-700 hover:bg-purple-200', label: 'F' },
+                        ]).map(({ code, color, label }) => (
+                          <button key={code} type="button"
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${entry.absenceCode === code ? 'ring-2 ring-offset-1 ring-blue-400 ' + color : color + ' opacity-60'}`}
+                            onClick={() => {
+                              if (entry.absenceCode === code) {
+                                onChange(index, { ...entry, absenceCode: '' as AbsenceCode, remark: '' });
+                              } else {
+                                onChange(index, { ...entry, absenceCode: code, startTime: '', endTime: '', pauseMinutes: 0, remark: t(`absence.${code}`) });
+                              }
+                            }}
+                          >{label}</button>
+                        ))}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-col gap-1">
@@ -103,8 +127,11 @@ export function DailyEntriesTable({ entries, onChange, onCopyPrevious }: Props) 
                         onChange={(e) => onChange(index, { ...entry, remark: e.target.value })}
                         placeholder={t('daily.remarkPlaceholder')} />
                       {entry.warnings.length > 0 && (
-                        <div className="text-xs text-red-600 font-medium">
-                          {entry.warnings.map(w => t(w)).join(', ')}
+                        <div className="text-xs font-medium flex items-center gap-1">
+                          <span className={hasErrors ? 'text-red-600' : 'text-amber-600'}>⚠</span>
+                          <span className={hasErrors ? 'text-red-600' : 'text-amber-600'}>
+                            {entry.warnings.map(w => t(w)).join(', ')}
+                          </span>
                         </div>
                       )}
                     </div>

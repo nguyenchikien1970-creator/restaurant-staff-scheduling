@@ -107,3 +107,14 @@ CREATE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_entries_user_id ON schedule_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_entries_month_year ON schedule_entries(user_id, month, year);
 CREATE INDEX IF NOT EXISTS idx_schedule_entries_employee ON schedule_entries(employee_id, entry_date);
+
+-- =========================================================
+-- Migration: Peak hours & Busy days (Phase 5)
+-- Run this if columns don't exist yet
+-- =========================================================
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS bundesland TEXT DEFAULT '';
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS busy_days INTEGER[] DEFAULT '{}';
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS lunch_peak_start TEXT DEFAULT '12:00';
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS lunch_peak_end TEXT DEFAULT '15:00';
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS dinner_peak_start TEXT DEFAULT '18:00';
+ALTER TABLE restaurant_configs ADD COLUMN IF NOT EXISTS dinner_peak_end TEXT DEFAULT '21:00';

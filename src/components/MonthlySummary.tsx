@@ -4,12 +4,18 @@ import { useLanguage } from "../i18n";
 interface Props {
   summary: MonthlySummaryData;
   weeklyHours: number;
+  contractType?: string;
+  hourlyWage?: number;
 }
 
-export function MonthlySummary({ summary, weeklyHours }: Props) {
+export function MonthlySummary({ summary, weeklyHours, contractType, hourlyWage }: Props) {
   const { t } = useLanguage();
   const targetMonthlyHours = weeklyHours * 4.33;
   const diff = summary.totalNormalHours - targetMonthlyHours;
+  const isMinijob = contractType === 'Minijob' || weeklyHours < 10;
+  const wage = hourlyWage || 12.82; // German minimum wage 2025
+  const monthlyIncome = summary.totalNormalHours * wage;
+  const minijobLimit = 556;
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -57,6 +63,19 @@ export function MonthlySummary({ summary, weeklyHours }: Props) {
           <div className="text-sm text-gray-600 font-medium mb-1">{t('summary.calendarDays')}</div>
           <div className="text-2xl font-bold text-gray-900">{summary.calendarDays}</div>
         </div>
+        {isMinijob && (
+          <div className={`p-4 rounded-md border ${monthlyIncome > minijobLimit ? 'bg-red-50 border-red-200' : 'bg-teal-50 border-teal-100'}`}>
+            <div className={`text-sm font-medium mb-1 ${monthlyIncome > minijobLimit ? 'text-red-600' : 'text-teal-600'}`}>
+              {t('summary.monthlyIncome')}
+            </div>
+            <div className={`text-2xl font-bold ${monthlyIncome > minijobLimit ? 'text-red-900' : 'text-teal-900'}`}>
+              {monthlyIncome.toFixed(0)}€
+            </div>
+            <div className={`text-xs mt-1 ${monthlyIncome > minijobLimit ? 'text-red-500 font-bold' : 'text-teal-500'}`}>
+              {monthlyIncome > minijobLimit ? `⚠ ${t('summary.minijobWarning')}` : t('summary.minijobLimit')}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

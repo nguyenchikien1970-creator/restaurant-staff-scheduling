@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { Lock, Mail, Eye, EyeOff, ChefHat } from 'lucide-react';
 import { useLanguage } from '../i18n';
-import { supabase } from '../lib/supabaseClient';
 
 interface LoginPageProps {
-  onLogin: (email: string, userId: string) => void;
+  onLogin: (email: string) => void;
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -14,6 +13,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // App password from env
+  const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'mammam2024';
 
   // Google Apps Script URL for login logging
   const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
@@ -92,16 +94,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setLoading(true);
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setError(language === 'de' ? 'Falsches Passwort oder E-Mail.' : 'Sai email hoặc mật khẩu.');
-    } else if (data.user) {
-      logLoginToSheet(data.user.email || email);
-      onLogin(data.user.email || email, data.user.id);
+    // Simple password check against env variable
+    if (password === APP_PASSWORD) {
+      // Save session to localStorage
+      localStorage.setItem('auth_email', email);
+      logLoginToSheet(email);
+      onLogin(email);
+    } else {
+      setError(language === 'de' ? 'Falsches Passwort.' : 'Sai mật khẩu.');
     }
 
     setLoading(false);

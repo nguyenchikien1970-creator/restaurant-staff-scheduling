@@ -322,7 +322,7 @@
   <div class="header-icon">👨‍🍳</div>
   <h1>Hướng Dẫn Sử Dụng</h1>
   <p>Quản Lý Nhân Sự Nhà Hàng — Lập Lịch Nhân Sự Thông Minh</p>
-  <span class="version">by MAMMAM Berlin • Phiên bản 4/2026</span>
+  <span class="version">by MAMMAM Berlin • Phiên bản 4.0 – Tháng 4/2026</span>
 </div>
 
 <div class="container">
@@ -337,15 +337,15 @@
       </div>
       <div class="step-item">
         <div class="step-num">2</div>
-        <div class="step-text">Tab <b>"Cài đặt"</b> → Đặt giờ mở/đóng cửa + chọn ngày nghỉ</div>
+        <div class="step-text">Tab <b>"Cài đặt"</b> → Đặt giờ mở/đóng cửa, chọn Bundesland, chọn ngày nghỉ</div>
       </div>
       <div class="step-item">
         <div class="step-num">3</div>
-        <div class="step-text">Bấm nút <b>"Tạo lịch tự động"</b> → Hệ thống tự tạo lịch cho tất cả</div>
+        <div class="step-text">Bấm nút <b>"🗓 Tạo lịch tự động"</b> → Hệ thống tự tạo lịch cho tất cả</div>
       </div>
       <div class="step-item">
         <div class="step-num">4</div>
-        <div class="step-text">Tab <b>"Lịch làm việc"</b> → Kiểm tra, bấm <b>"Tối ưu lịch"</b> nếu có lỗi → Xuất Excel</div>
+        <div class="step-text">Tab <b>"Lịch làm việc"</b> → Kiểm tra badges %, bấm <b>"🔧 Tối ưu"</b>, xuất Excel hoặc <b>"🖨 In lịch tuần"</b></div>
       </div>
     </div>
   </div>
@@ -357,8 +357,10 @@
       <li><a href="#login">Đăng nhập vào App</a></li>
       <li><a href="#overview">Giao diện chính — 3 tab và các nút</a></li>
       <li><a href="#staff">Thêm nhân viên (Tab "Nhân viên")</a></li>
-      <li><a href="#settings">Cài đặt nhà hàng (Tab "Cài đặt")</a></li>
-      <li><a href="#schedule">Xem và chỉnh sửa lịch (Tab "Lịch làm việc")</a></li>
+      <li><a href="#settings">Cài đặt nhà hàng + Bundesland (Tab "Cài đặt")</a></li>
+      <li><a href="#schedule">Xem, chỉnh sửa & tối ưu lịch (Tab "Lịch làm việc")</a></li>
+      <li><a href="#buttons">5 nút chức năng quan trọng</a></li>
+      <li><a href="#accuracy">Accuracy Badge & Bảng tổng quan</a></li>
       <li><a href="#excel">Xuất file Excel</a></li>
       <li><a href="#backup">Sao lưu dữ liệu</a></li>
       <li><a href="#tips">Mẹo hữu ích</a></li>
@@ -511,30 +513,39 @@
     </div>
     <div class="instruction">
       <div class="num">3</div>
-      <div class="text"><strong>Ô "Số NV tối thiểu/ca"</strong> → Chọn số nhân viên TỐI THIỂU mỗi ca <span class="hint">Ví dụ: 2 (luôn phải có ít nhất 2 người)</span></div>
+      <div class="text"><strong>Ô "Số NV tối thiểu/ca"</strong> → Chọn số nhân viên TỐI THIỂU mỗi ca <span class="hint">Ví dụ: 2</span></div>
     </div>
 
-    <h3>Phần 2 — Ngày nghỉ nhà hàng (Ruhetag)</h3>
-
+    <h3>Phần 2 — Chọn Bundesland (Bang) 🇩🇪</h3>
     <div class="instruction">
       <div class="num">4</div>
-      <div class="text">Bạn sẽ thấy <b>7 ô vuông</b>: T2, T3, T4, T5, T6, T7, CN</div>
+      <div class="text">
+        <strong>Dropdown "Bundesland"</strong> → Chọn bang nơi nhà hàng hoạt động
+        <span class="hint">Ví dụ: Berlin, Bayern, NRW... Hệ thống sẽ TỰ ĐỘNG nhận diện tất cả ngày lễ (Feiertage) của bang đó!</span>
+      </div>
     </div>
+
+    <div class="tip-box green">
+      <strong>🇩🇪 Tính năng Feiertage tự động:</strong>
+      Sau khi chọn Bundesland, khi bạn tạo lịch → ngày lễ Đức sẽ tự động được đánh dấu "F" (Feiertag). Bao gồm:
+      <ul style="margin-top:8px; padding-left:20px; line-height:2;">
+        <li>9 ngày lễ quốc gia (Neujahr, Karfreitag, Christi Himmelfahrt, Tag der Arbeit...)</li>
+        <li>Ngày lễ riêng của bang (Fronleichnam, Allerheiligen, Reformationstag...)</li>
+        <li>Ngày lễ tính theo Phục Sinh (tự tính chính xác theo năm)</li>
+      </ul>
+    </div>
+
+    <h3>Phần 3 — Ngày nghỉ nhà hàng (Ruhetag)</h3>
     <div class="instruction">
       <div class="num">5</div>
-      <div class="text"><strong>Bấm vào ô</strong> → Ô chuyển <b style="color:#ef4444">MÀU ĐỎ</b> = nhà hàng đóng cửa ngày đó <span class="hint">Bấm lại lần nữa để bỏ chọn (mở cửa lại)</span></div>
+      <div class="text">Bạn sẽ thấy <b>7 ô vuông</b>: T2, T3, T4, T5, T6, T7, CN. <b>Bấm vào ô</b> = ngày đó nhà hàng đóng cửa (màu đỏ)</div>
     </div>
+
+    <h3>Phần 4 — Tạo lịch tự động ⭐</h3>
     <div class="instruction">
       <div class="num">6</div>
-      <div class="text">Ví dụ: Bấm <b>T2</b> → Nhà hàng nghỉ vào mỗi thứ Hai</div>
-    </div>
-
-    <h3>Phần 3 — Tạo lịch tự động ⭐</h3>
-
-    <div class="instruction">
-      <div class="num">7</div>
       <div class="text">
-        <strong>Nút <span class="btn-example blue">Tạo lịch tự động</span></strong> → <b>BẤM VÀO ĐÂY!</b>
+        <strong>Nút <span class="btn-example blue">🗓 Tạo lịch tự động</span></strong> → <b>BẤM VÀO ĐÂY!</b>
         <span class="hint">Hệ thống sẽ tự động tạo lịch làm việc cho TẤT CẢ nhân viên</span>
       </div>
     </div>
@@ -542,10 +553,11 @@
     <div class="tip-box green">
       <strong>✨ Đây là nút QUAN TRỌNG NHẤT! Hệ thống sẽ tự động:</strong>
       <ul style="margin-top:8px; padding-left:20px; line-height:2;">
-        <li>Phân bổ ca làm cho từng nhân viên theo giờ hợp đồng</li>
-        <li>Đảm bảo đủ người trong giờ cao điểm (11:30–15:00 và 17:00–21:30)</li>
-        <li>Tự cho nghỉ phép 2 ngày/tháng và ngày nghỉ hàng tuần (đúng Luật Đức)</li>
-        <li>Nghỉ giải lao: 30 phút (≤8h) hoặc 45 phút (&gt;8h) đúng quy định</li>
+        <li>Phân bổ ca đều qua tất cả ngày trong tháng (không dồn)</li>
+        <li>Đảm bảo đủ người trong giờ cao điểm</li>
+        <li>Tự cho nghỉ phép 2 ngày/tháng + tự đánh dấu Feiertage</li>
+        <li>Tuân thủ Luật Đức: max 10h/ngày, 11h nghỉ giữa ca, 5 ngày/tuần</li>
+        <li>Nghỉ giải lao: 30 phút (≤8h) hoặc 45 phút (&gt;8h)</li>
       </ul>
     </div>
   </div>
@@ -555,37 +567,60 @@
     <h2><span class="emoji">📅</span> Bước 5: Xem và Chỉnh Sửa Lịch</h2>
     <p>Sau khi bấm "Tạo lịch tự động", app tự chuyển sang tab <span class="btn-example blue">📅 Lịch làm việc</span>.</p>
 
-    <h3>Phần cảnh báo (khung màu cam — nếu có)</h3>
-    <p>Nếu lịch có vấn đề, bạn sẽ thấy khung màu cam ở trên cùng:</p>
-
+    <h3>5 nút chức năng <span id="buttons"></span></h3>
     <table>
-      <thead><tr><th>Thành phần</th><th>Ý nghĩa</th></tr></thead>
+      <thead><tr><th>Nút</th><th>Màu</th><th>Chức năng</th></tr></thead>
       <tbody>
-        <tr><td>📊 "Phát hiện X vấn đề"</td><td>Bấm vào để mở/đóng danh sách lỗi</td></tr>
-        <tr><td><span class="btn-example red">X lỗi nghiêm trọng</span></td><td>Số lỗi nghiêm trọng (thiếu người hoàn toàn)</td></tr>
-        <tr><td><span class="btn-example orange">X cảnh báo</span></td><td>Số cảnh báo (thiếu người giờ cao điểm)</td></tr>
-        <tr><td><span class="btn-example green">🔧 Tối ưu lịch</span></td><td><b>BẤM VÀO ĐÂY</b> để hệ thống TỰ ĐỘNG SỬA tất cả lỗi!</td></tr>
+        <tr><td><b>🗓 Tạo lịch</b></td><td>Xanh dương</td><td>Tạo lịch mới cho tất cả nhân viên</td></tr>
+        <tr><td><b>⚠ Kiểm tra lỗi</b></td><td>Cam</td><td>Phát hiện vi phạm luật lao động Đức</td></tr>
+        <tr><td><b>🔧 Tối ưu lịch</b></td><td>Xanh lá</td><td>Tự động sửa lỗi + cân bằng giờ (chạy nhiều lần đến khi tốt nhất)</td></tr>
+        <tr><td><b>📋 Copy tháng trước</b></td><td>Tím</td><td>Load lịch tháng trước và áp dụng vào tháng này</td></tr>
+        <tr><td><b>🖨 In lịch tuần</b></td><td>Xám</td><td>Mở cửa sổ in bảng tuần (NV × T2-CN) — dán ở nhà hàng</td></tr>
       </tbody>
     </table>
 
-    <div class="tip-box green">
-      <strong>💡 Mẹo:</strong>
-      Sau khi bấm "Tối ưu lịch", cảnh báo sẽ biến mất hoặc giảm đáng kể. Bạn có thể bấm nhiều lần!
+    <h3>Accuracy Badges (Độ chính xác) <span id="accuracy"></span></h3>
+    <p>Mỗi nút nhân viên hiển thị <b>badge %</b> cho biết giờ làm so với hợp đồng:</p>
+    <table>
+      <thead><tr><th>Badge</th><th>Nghĩa</th></tr></thead>
+      <tbody>
+        <tr><td><span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:12px; font-weight:bold;">98-100%</span></td><td>✅ Xuất sắc — đúng giờ hợp đồng</td></tr>
+        <tr><td><span style="background:#fef9c3; color:#a16207; padding:2px 8px; border-radius:12px; font-weight:bold;">95-97%</span></td><td>⚠️ Gần đúng — chênh lệch nhỏ</td></tr>
+        <tr><td><span style="background:#fecaca; color:#dc2626; padding:2px 8px; border-radius:12px; font-weight:bold;">&lt;95%</span></td><td>❌ Cần sửa — bấm "Tối ưu lịch"</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Bảng tổng quan (Overview)</h3>
+    <p>Bấm link <b>"Hiển/Ẩn tổng quan"</b> để mở bảng tất cả nhân viên:</p>
+    <ul style="padding-left:20px; line-height:2;">
+      <li>Giờ/tuần hợp đồng, giờ mục tiêu, giờ thực tế</li>
+      <li>Chênh lệch (+/-) và % chính xác</li>
+      <li>Số ngày nghỉ phép (U) và nghỉ bệnh (K)</li>
+      <li>Bấm vào hàng = chuyển đến NV đó</li>
+    </ul>
+
+    <h3>Nút nhanh đánh dấu vắng mặt</h3>
+    <p>Cạnh cột "Trạng thái" có <b>4 nút nhỏ</b>:</p>
+    <table>
+      <thead><tr><th>Nút</th><th>Nghĩa</th><th>Tác dụng</th></tr></thead>
+      <tbody>
+        <tr><td><span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:6px; font-weight:bold;">K</span></td><td>Krank (Bệnh)</td><td>1 click = đánh dấu nghỉ bệnh, xóa giờ làm</td></tr>
+        <tr><td><span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:6px; font-weight:bold;">U</span></td><td>Urlaub (Phép)</td><td>1 click = đánh dấu nghỉ phép</td></tr>
+        <tr><td><span style="background:#ffedd5; color:#9a3412; padding:2px 8px; border-radius:6px; font-weight:bold;">UU</span></td><td>Unbezahlter Urlaub</td><td>1 click = nghỉ không lương</td></tr>
+        <tr><td><span style="background:#f3e8ff; color:#7e22ce; padding:2px 8px; border-radius:6px; font-weight:bold;">F</span></td><td>Feiertag (Lễ)</td><td>1 click = đánh dấu ngày lễ</td></tr>
+      </tbody>
+    </table>
+    <div class="tip-box blue">
+      <strong>💡 Toggle:</strong>
+      Bấm nút lần 1 = đánh dấu. Bấm lần 2 = hủy đánh dấu (quay lại bình thường).
     </div>
 
-    <h3>Chọn nhân viên để xem lịch</h3>
-    <div class="instruction">
-      <div class="num">1</div>
-      <div class="text">Phía trên có các <b>nút tròn</b> mang tên từng nhân viên</div>
-    </div>
-    <div class="instruction">
-      <div class="num">2</div>
-      <div class="text"><strong>Bấm vào tên</strong> nhân viên → xem lịch làm việc của người đó</div>
-    </div>
-    <div class="instruction">
-      <div class="num">3</div>
-      <div class="text">Nút đang chọn sẽ có <b style="color:#3b82f6">MÀU XANH DƯƠNG</b></div>
-    </div>
+    <h3>Minijob income tracking (Thu nhập Minijob)</h3>
+    <p>Nếu nhân viên là <b>Minijob</b> (dưới 10h/tuần), khung "Tổng kết tháng" sẽ hiện thêm:</p>
+    <ul style="padding-left:20px; line-height:2;">
+      <li><b>Thu nhập tháng</b> — tự tính dựa trên giờ làm × lương tối thiểu (12,82€/h)</li>
+      <li>⚠ <b>Cảnh báo đỏ</b> nếu vượt 556€/tháng (giới hạn Minijob Đức)</li>
+    </ul>
 
     <h3>Phần "Tổng kết tháng"</h3>
     <table>
@@ -601,9 +636,8 @@
       </tbody>
     </table>
 
-    <h3>Bảng chấm công (bảng lớn phía dưới)</h3>
-    <p>Đây là bảng chi tiết từng ngày. Bạn có thể <b>bấm vào bất kỳ ô nào để sửa</b>:</p>
-
+    <h3>Bảng chấm công</h3>
+    <p>Bảng chi tiết từng ngày. Bạn có thể <b>bấm vào bất kỳ ô nào để sửa</b>:</p>
     <table>
       <thead><tr><th>Cột</th><th>Ý nghĩa</th><th>Cách dùng</th></tr></thead>
       <tbody>
@@ -611,24 +645,10 @@
         <tr><td><b>Bắt đầu</b></td><td>Giờ vào ca</td><td>Bấm → chọn giờ mới</td></tr>
         <tr><td><b>Nghỉ (Phút)</b></td><td>Phút nghỉ giải lao</td><td>Bấm → gõ số phút</td></tr>
         <tr><td><b>Kết thúc</b></td><td>Giờ ra ca</td><td>Bấm → chọn giờ mới</td></tr>
-        <tr><td><b>Tổng giờ</b></td><td>Tổng giờ làm ngày đó</td><td>Tự tính (không cần sửa)</td></tr>
-        <tr><td><b>Trạng thái</b></td><td>Trạng thái đặc biệt</td><td>Chọn từ danh sách</td></tr>
-        <tr><td><b>Ghi chú</b></td><td>Ghi chú thêm</td><td>Gõ bất kỳ nội dung nào</td></tr>
-        <tr><td><b>📋</b></td><td>Sao chép giờ từ ngày trước</td><td>Bấm 1 nút = copy giống hôm trước</td></tr>
-      </tbody>
-    </table>
-
-    <h3>Giải thích các Trạng Thái:</h3>
-    <table>
-      <thead><tr><th>Ký hiệu</th><th>Nghĩa tiếng Đức</th><th>Nghĩa tiếng Việt</th></tr></thead>
-      <tbody>
-        <tr><td><b>-</b></td><td>(trống)</td><td>Ngày làm việc bình thường</td></tr>
-        <tr><td><b>K</b></td><td>Krank</td><td>Nghỉ bệnh</td></tr>
-        <tr><td><b>U</b></td><td>Urlaub</td><td>Nghỉ phép (có lương)</td></tr>
-        <tr><td><b>UU</b></td><td>Unbezahlter Urlaub</td><td>Nghỉ không lương</td></tr>
-        <tr><td><b>F</b></td><td>Feiertag</td><td>Ngày lễ</td></tr>
-        <tr><td><b>SA</b></td><td>Stundenweise abwesend</td><td>Vắng mặt theo giờ</td></tr>
-        <tr><td><b>SU</b></td><td>Stundenweise Urlaub</td><td>Nghỉ phép theo giờ</td></tr>
+        <tr><td><b>Tổng giờ</b></td><td>Tổng giờ làm ngày đó</td><td>Tự tính</td></tr>
+        <tr><td><b>Trạng thái</b></td><td>K/U/UU/F + nút toggle</td><td>Chọn hoặc bấm nút nhanh</td></tr>
+        <tr><td><b>Ghi chú</b></td><td>Ghi chú thêm</td><td>Gõ bất kỳ</td></tr>
+        <tr><td><b>📋</b></td><td>Sao chép giờ từ ngày trước</td><td>Bấm 1 nút = copy</td></tr>
       </tbody>
     </table>
   </div>
@@ -701,27 +721,42 @@
 
     <div class="tip-box green">
       <strong>1. Dữ liệu TỰ LƯU</strong>
-      App tự động lưu mọi thay đổi. Bạn KHÔNG cần bấm nút "Lưu". Sẽ có dòng chữ nhấp nháy "Đã lưu tự động" ở trên cùng.
+      App tự động lưu mọi thay đổi. Bạn KHÔNG cần bấm nút "Lưu".
     </div>
 
     <div class="tip-box blue">
       <strong>2. Nút 📋 sao chép</strong>
-      Rất tiện! Bấm vào để copy giờ làm giống hệt ngày hôm trước. Tiết kiệm thời gian khi nhiều ngày làm giống nhau.
+      Bấm vào để copy giờ làm giống hệt ngày hôm trước. Tiết kiệm thời gian!
     </div>
 
     <div class="tip-box green">
-      <strong>3. Đổi tháng/năm</strong>
-      Quay lại tab "Nhân viên" → đổi tháng/năm → rồi vào tab "Cài đặt" → bấm "Tạo lịch tự động" lại.
+      <strong>3. Nút nhanh [K] [U] [UU] [F]</strong>
+      1 click = đánh dấu vắng mặt. 1 click nữa = hủy. Nhanh hơn dropdown rất nhiều!
     </div>
 
     <div class="tip-box blue">
-      <strong>4. Dùng trên điện thoại</strong>
-      App hoạt động đầy đủ trên điện thoại! Xoay ngang điện thoại để xem bảng rộng hơn.
+      <strong>4. Chọn Bundesland trước khi tạo lịch</strong>
+      Vào Cài đặt → chọn đúng bang → ngày lễ sẽ tự động xuất hiện khi tạo lịch.
     </div>
 
     <div class="tip-box green">
-      <strong>5. In bảng chấm công</strong>
-      Xuất Excel → mở file → bấm In (Print). Hoặc bạn có thể in trang này (Ctrl+P / Cmd+P).
+      <strong>5. Copy tháng trước</strong>
+      Nếu lịch tháng trước ổn → bấm "Copy tháng trước" → chỉ cần chỉnh sửa nhỏ.
+    </div>
+
+    <div class="tip-box blue">
+      <strong>6. In lịch tuần</strong>
+      Bấm "🖨 In lịch tuần" → in bảng A4 ngang → dán tại nhà hàng cho nhân viên xem.
+    </div>
+
+    <div class="tip-box green">
+      <strong>7. Xem tổng quan tất cả NV</strong>
+      Bấm "Hiển/Ẩn tổng quan" → thấy bảng % accuracy tất cả NV cùng lúc.
+    </div>
+
+    <div class="tip-box blue">
+      <strong>8. Dùng trên điện thoại</strong>
+      App hoạt động đầy đủ trên điện thoại! Xoay ngang để xem bảng rộng hơn.
     </div>
   </div>
 
@@ -761,7 +796,27 @@
 
     <div class="faq-item">
       <div class="question">Hỏi: Nhân viên nghỉ bệnh, làm sao ghi?</div>
-      <div class="answer">→ Trong bảng chấm công, tìm ngày nghỉ bệnh → ở cột "Trạng thái" chọn <b>K (Krank/Bệnh)</b>. Hệ thống sẽ tự xóa giờ làm ngày đó.</div>
+      <div class="answer">→ Cách nhanh nhất: Bấm nút <b>[K]</b> (màu vàng) cạnh cột trạng thái. Hệ thống tự xóa giờ và ghi nhận nghỉ bệnh.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Ngày lễ Đức có tự động không?</div>
+      <div class="answer">→ CÓ! Vào Cài đặt → chọn <b>Bundesland</b> (ví dụ: Berlin) → tạo lịch tự động → tất cả Feiertage sẽ tự động đánh dấu "F".</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Accuracy badge hiển thị đỏ dưới 95%?</div>
+      <div class="answer">→ Bấm nút <b>"🔧 Tối ưu lịch"</b> — hệ thống sẽ tự chạy nhiều lần cho đến khi đạt tốt nhất. Target: 98-99%.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Nhân viên Minijob bị cảnh báo 556€?</div>
+      <div class="answer">→ Thu nhập vượt giới hạn Minijob 556€/tháng. Giảm giờ làm hoặc chuyển sang hợp đồng Teilzeit.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="question">Hỏi: Muốn in lịch cho nhân viên xem?</div>
+      <div class="answer">→ Bấm nút <b>"🖨 In lịch tuần"</b> → trang in mở ra với bảng NV × ngày → bấm Print.</div>
     </div>
   </div>
 
