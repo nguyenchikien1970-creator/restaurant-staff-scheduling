@@ -121,6 +121,7 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
                 <th className="px-4 py-3">{t('staff.id')}</th>
                 <th className="px-4 py-3">{t('staff.hoursPerWeek')}</th>
                 <th className="px-4 py-3">{t('staff.contractType')}</th>
+                <th className="px-4 py-3">{t('staff.endDate')}</th>
                 <th className="px-4 py-3 text-right">{t('staff.actions')}</th>
               </tr>
             </thead>
@@ -135,7 +136,7 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400 italic">
                     {t('staff.empty')}
                   </td>
                 </tr>
@@ -192,6 +193,14 @@ const DecimalEmployeeRow: React.FC<DecimalEmployeeRowProps> = ({ emp, onUpdate, 
           <option value="Teilzeit">Teilzeit</option>
           <option value="Minijob">Minijob</option>
         </select>
+      </td>
+      <td className="px-4 py-3">
+        <input
+          type="date"
+          value={emp.endDate || ''}
+          onChange={(e) => onUpdate(emp.id, 'endDate', e.target.value || undefined)}
+          className="w-36 bg-transparent border border-gray-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+        />
       </td>
       <td className="px-4 py-3 text-right">
         <button onClick={() => onRemove(emp.id)} className="text-red-500 hover:text-red-700 p-1">

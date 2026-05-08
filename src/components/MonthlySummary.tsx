@@ -39,6 +39,21 @@ export function MonthlySummary({ summary, weeklyHours, contractType, hourlyWage 
           <div className="text-sm text-gray-600 font-medium mb-1">{t('summary.workedDays')}</div>
           <div className="text-2xl font-bold text-gray-900">{summary.workedDays}</div>
         </div>
+
+        {/* ── Special Hours: Night / Sunday / Holiday ── */}
+        <div className="bg-violet-50 p-4 rounded-md border border-violet-200">
+          <div className="text-sm text-violet-600 font-medium mb-1">🌙 {t('summary.nightHours')}</div>
+          <div className="text-2xl font-bold text-violet-900">{summary.nightHours.toFixed(2)} h</div>
+        </div>
+        <div className="bg-amber-50 p-4 rounded-md border border-amber-200">
+          <div className="text-sm text-amber-600 font-medium mb-1">☀️ {t('summary.sundayHours')}</div>
+          <div className="text-2xl font-bold text-amber-900">{summary.sundayHours.toFixed(2)} h</div>
+        </div>
+        <div className="bg-red-50 p-4 rounded-md border border-red-200">
+          <div className="text-sm text-red-600 font-medium mb-1">🎄 {t('summary.holidayHours')}</div>
+          <div className="text-2xl font-bold text-red-900">{summary.holidayHours.toFixed(2)} h</div>
+        </div>
+
         <div className="bg-yellow-50 p-4 rounded-md border border-yellow-100">
           <div className="text-sm text-yellow-700 font-medium mb-1">{t('summary.sickDays')}</div>
           <div className="text-2xl font-bold text-yellow-900">{summary.totalK}</div>

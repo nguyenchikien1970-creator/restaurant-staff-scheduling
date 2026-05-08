@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { MasterData, DailyEntry, CalculatedEntry, MonthlySummaryData, Employee, RestaurantConfig } from './types';
-import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert, calculateAllEmployeesAccuracy, EmployeeAccuracy } from './lib/utils';
+import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert, calculateAllEmployeesAccuracy, EmployeeAccuracy, getGermanHolidays } from './lib/utils';
 import { StaffManagement } from './components/StaffManagement';
 
 // Lazy-loaded components — only fetched when user navigates to them
@@ -62,11 +62,17 @@ export default function App() {
   const [alertsExpanded, setAlertsExpanded] = useState(true);
   const [overviewExpanded, setOverviewExpanded] = useState(false);
 
+  // Compute holidays set for special hours tracking
+  const holidays = React.useMemo(() =>
+    getGermanHolidays(masterData.year, masterData.restaurantConfig.bundesland),
+    [masterData.year, masterData.restaurantConfig.bundesland]
+  );
+
   // Compute accuracy for all employees (memoized by entries)
   const employeeAccuracies: EmployeeAccuracy[] = React.useMemo(() => {
     if (entries.length === 0 || masterData.employees.length === 0) return [];
-    return calculateAllEmployeesAccuracy(masterData.employees, entries);
-  }, [entries, masterData.employees]);
+    return calculateAllEmployeesAccuracy(masterData.employees, entries, holidays);
+  }, [entries, masterData.employees, holidays]);
 
   // Auto-save config when masterData changes (debounced)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -347,7 +353,7 @@ export default function App() {
   const selectedEmployee = masterData.employees.find(e => e.id === selectedEmployeeId);
   const currentEmployeeEntries = entries.filter(e => e.employeeId === selectedEmployeeId);
   const calculatedEntries = processEntries(currentEmployeeEntries);
-  const summary = calculateSummary(calculatedEntries);
+  const summary = calculateSummary(calculatedEntries, holidays);
 
   // ── Auth loading ──
   if (authLoading) {
@@ -696,6 +702,9 @@ export default function App() {
                             <th className="px-3 py-2 text-right">{t('summary.actualHours')}</th>
                             <th className="px-3 py-2 text-right">{t('summary.difference')}</th>
                             <th className="px-3 py-2 text-center">%</th>
+                            <th className="px-3 py-2 text-center">🌙</th>
+                            <th className="px-3 py-2 text-center">☀️</th>
+                            <th className="px-3 py-2 text-center">🎄</th>
                             <th className="px-3 py-2 text-center">U</th>
                             <th className="px-3 py-2 text-center">K</th>
                           </tr>
@@ -713,6 +722,9 @@ export default function App() {
                                   {a.difference >= 0 ? '+' : ''}{a.difference.toFixed(1)}
                                 </td>
                                 <td className={`px-3 py-2 text-center font-bold ${color}`}>{a.accuracy}%</td>
+                                <td className="px-3 py-2 text-center text-violet-600 font-medium">{a.nightHours > 0 ? a.nightHours.toFixed(1) : '-'}</td>
+                                <td className="px-3 py-2 text-center text-amber-600 font-medium">{a.sundayHours > 0 ? a.sundayHours.toFixed(1) : '-'}</td>
+                                <td className="px-3 py-2 text-center text-red-600 font-medium">{a.holidayHours > 0 ? a.holidayHours.toFixed(1) : '-'}</td>
                                 <td className="px-3 py-2 text-center text-gray-500">{a.vacationDays}</td>
                                 <td className="px-3 py-2 text-center text-gray-500">{a.sickDays}</td>
                               </tr>

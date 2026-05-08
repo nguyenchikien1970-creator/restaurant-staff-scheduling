@@ -8,6 +8,7 @@ export interface Employee {
   contractType?: ContractType;  // auto-derived from weeklyHours if not set
   hourlyWage?: number;          // relevant for Minijob tracking
   isActive?: boolean;           // default true
+  endDate?: string;             // YYYY-MM-DD — last working day (mid-month departure)
 }
 
 export interface DayScheduleConfig {
@@ -72,6 +73,9 @@ export interface MonthlySummaryData {
   absenceDays: number;
   totalBreakMinutes: number;
   totalDecimalHours: number;
+  nightHours: number;           // Giờ ban đêm (≥20:00) — Nachtzuschlag
+  sundayHours: number;          // Giờ Chủ nhật — Sonntagszuschlag
+  holidayHours: number;         // Giờ ngày lễ — Feiertagszuschlag
 }
 
 /** Helper: derive contract type from weekly hours if not explicitly set */

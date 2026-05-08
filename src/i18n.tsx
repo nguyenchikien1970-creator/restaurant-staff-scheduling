@@ -160,6 +160,12 @@ const translations: Record<Language, Record<string, string>> = {
     'schedule.copyNoData': 'Không có dữ liệu tháng trước',
     'schedule.printWeek': 'In lịch tuần',
     'remark.holiday': 'Ngày lễ (Feiertag)',
+    'summary.nightHours': 'Giờ ban đêm (≥20h)',
+    'summary.sundayHours': 'Giờ Chủ nhật',
+    'summary.holidayHours': 'Giờ ngày lễ',
+    'staff.endDate': 'Ngày nghỉ việc',
+    'staff.endDatePlaceholder': 'Chọn ngày...',
+    'warning.noClosingStaff': 'Không có NV làm đến giờ đóng cửa',
   },
   de: {
     'app.title': 'Personalmanagement Restaurant - Intelligente Dienstplanung',
@@ -315,6 +321,12 @@ const translations: Record<Language, Record<string, string>> = {
     'schedule.copyNoData': 'Keine Daten vom Vormonat',
     'schedule.printWeek': 'Wochenplan drucken',
     'remark.holiday': 'Feiertag',
+    'summary.nightHours': 'Nachtarbeit (ab 20 Uhr)',
+    'summary.sundayHours': 'Sonntagsarbeit',
+    'summary.holidayHours': 'Feiertagsarbeit',
+    'staff.endDate': 'Letzter Arbeitstag',
+    'staff.endDatePlaceholder': 'Datum wählen...',
+    'warning.noClosingStaff': 'Kein MA bis Schließzeit eingeplant',
   }
 };
 

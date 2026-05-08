@@ -211,6 +211,7 @@ Mỗi NV được auto-assign 2 ngày nghỉ phép (U):
 | Thời gian nghỉ giữa 2 ca | ≥ 11 tiếng |
 | Max ngày làm/tuần (bình thường) | 5 ngày |
 | Max ngày làm/tuần (ngày đông khách) | 6 ngày |
+| **Max ngày làm LIÊN TIẾP** | **6 ngày (sau đó BẮT BUỘC 1 ngày nghỉ)** |
 | Ca tối thiểu | 1 tiếng (60 min gross) |
 
 ```
@@ -245,6 +246,43 @@ Lương tối thiểu: 12.82€/h
 monthlyIncome = actualHours × 12.82
 if monthlyIncome > 556 → ⚠ WARNING: Vượt giới hạn Minijob
 ```
+
+### QUY TẮC 11: Giới Hạn Ngày Làm Liên Tiếp (Max 6 Ngày Liền)
+
+```
+⚠ NGUYÊN TẮC BẮT BUỘC:
+  Nhân viên KHÔNG ĐƯỢC làm liền quá 6 ngày liên tiếp.
+  Sau tối đa 6 ngày làm liên tiếp → BẮT BUỘC có ≥ 1 ngày nghỉ (Frei hoặc Urlaub).
+
+  ❌ KHÔNG CHO PHÉP: 7, 8, 9... ngày làm liền
+  ✅ CHO PHÉP:       Max 6 ngày liền → rồi ≥ 1 ngày nghỉ
+
+Algorithm:
+  consecutiveWorkDays = đếm số ngày làm liên tiếp tính đến hôm nay
+
+  Khi xếp lịch mỗi ngày (PHASE B, Step 5 — FILTER available employees):
+    for each employee:
+      Tính consecutiveWorkDays = số ngày liền trước đó NV đã làm (không tính Frei/U/K/UU)
+      if consecutiveWorkDays >= 6:
+        → LOẠI NV ra khỏi danh sách khả dụng ngày hôm nay
+        → Tự động gán ngày nghỉ (Frei) nếu chưa có absence code
+        → Reset consecutiveWorkDays = 0 sau ngày nghỉ
+
+  Tracking:
+    Dùng Map<employeeId, number> để track consecutiveWorkDays
+    Reset về 0 khi gặp ngày nghỉ (Frei, U, K, UU, nhà hàng đóng cửa)
+    Increment +1 khi NV được xếp ca làm
+
+  Edge cases:
+    - Ngày nhà hàng đóng cửa (Ruhetag) = ngày nghỉ → reset counter
+    - Ngày lễ mà NV vẫn làm = tính là ngày làm → increment counter
+    - NV nghỉ phép (U/K) = ngày nghỉ → reset counter
+    - Cuối tháng → kiểm tra streak chuyển sang tháng sau (lưu state)
+```
+
+> ⚠ **Tại sao cần?** Theo luật lao động Đức (ArbZG §9-11), làm việc liên tục
+> quá nhiều ngày gây kiệt sức và vi phạm quy định nghỉ ngơi. Tối đa 6 ngày
+> liên tiếp rồi BẮT BUỘC nghỉ — đảm bảo sức khỏe NV và tuân thủ pháp luật.
 
 ---
 
@@ -519,3 +557,80 @@ Mỗi user chỉ thấy data của chính mình:
 8. **Auto-relax**: Nếu cuối tuần thiếu người → nới 5→6 ngày/tuần tự động
 9. **Convergence**: Optimizer chạy đến khi accuracy ≥ 98% hoặc không cải thiện
 10. **DATEV-ready**: Excel export đúng chuẩn kế toán Đức
+11. **Max 6 ngày liền**: NV KHÔNG được làm quá 6 ngày liên tiếp — sau đó BẮT BUỘC ≥ 1 ngày nghỉ (Frei/Urlaub)
+12. **Luôn có NV đóng cửa**: Mỗi ngày PHẢI có ít nhất 1 NV làm đến giờ đóng cửa (closeTime)
+13. **Xử lý NV nghỉ giữa tháng**: NV có endDate → chỉ xếp lịch đến ngày đó, sau đó các NV còn lại tự động bù
+
+---
+
+## 13. QUY TẮC 12 — Tối thiểu 1 NV đến giờ đóng cửa
+
+### Lý do
+Nhà hàng cần ít nhất 1 NV có mặt lúc đóng cửa (thường 23:00) để:
+- Tính tiền cho khách cuối
+- Vệ sinh, khoá cửa
+
+### Thuật toán
+```
+Sau khi assign shifts cho 1 ngày:
+  closeTimeStr = format(closeTimeDate, 'HH:mm')
+  assignedEntries = entries có startTime && endTime && !absent
+  
+  IF không có entry nào có endTime === closeTimeStr:
+    bestEntry = entry có endTime lớn nhất (gần closeTime nhất)
+    newGross = closeTime - bestEntry.startTime
+    
+    IF newGross <= 10h45 (max gross):
+      bestEntry.endTime = closeTimeStr
+      Cập nhật pauseMinutes theo gross mới
+      Cập nhật minutesAssigned tracking
+```
+
+### Warning
+`analyzeScheduleWarnings()` thêm Check 4:
+- Severity: `warning`
+- Type: `gap`  
+- Message: "Không có NV làm đến giờ đóng cửa (23:00)"
+
+---
+
+## 14. QUY TẮC 13 — NV nghỉ giữa tháng (endDate)
+
+### Lý do
+Khi 1 NV nghỉ việc giữa tháng (ví dụ ngày 15), cần:
+- Không xếp lịch cho NV đó từ ngày 16 trở đi
+- Các NV còn lại tự động bù giờ để đảm bảo đủ nhân sự
+
+### Data Model
+```typescript
+Employee {
+  ...
+  endDate?: string  // 'YYYY-MM-DD' — ngày làm việc cuối cùng
+}
+```
+
+### Thuật toán
+```
+1. PRE-CALCULATE empWorkDays:
+   - NV có endDate → chỉ đếm ngày mở cửa ĐẾN endDate
+   
+2. Trong vòng lặp từng ngày:
+   - isEmpAvailableOnDate(emp, dateStr):
+     IF emp.endDate && dateStr > emp.endDate → return false
+   
+3. Tự động bù:
+   - Vì totalEmpWorkDays giảm → avgDailyHeadcount giảm sau endDate
+   - Các NV còn lại có relative debt tăng → scheduler tự ưu tiên
+   - Optimizer Strategy B: KHÔNG convert off-day sau endDate
+```
+
+### Giờ đặc biệt (Special Hours)
+```typescript
+MonthlySummaryData {
+  ...
+  nightHours: number    // Giờ ≥20:00 — Nachtzuschlag
+  sundayHours: number   // Giờ Chủ nhật — Sonntagszuschlag  
+  holidayHours: number  // Giờ ngày lễ — Feiertagszuschlag
+}
+```
+Logic: Tính tỷ lệ net/gross để trừ pause khỏi giờ đặc biệt.

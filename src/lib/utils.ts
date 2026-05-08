@@ -252,14 +252,50 @@ export function processEntries(entries: DailyEntry[]): CalculatedEntry[] {
   });
 }
 
-export function calculateSummary(entries: CalculatedEntry[]): MonthlySummaryData {
+export function calculateSummary(entries: CalculatedEntry[], holidays?: Set<string>): MonthlySummaryData {
   let totalNormalHours = 0, totalK = 0, totalU = 0, totalUU = 0, totalF = 0;
   let workedDays = 0, absenceDays = 0, totalBreakMinutes = 0, totalDecimalHours = 0;
+  let nightHours = 0, sundayHours = 0, holidayHours = 0;
 
   entries.forEach(entry => {
     totalDecimalHours += entry.durationDecimal;
     totalBreakMinutes += (entry.pauseMinutes || 0);
-    if (entry.durationMinutes > 0) { workedDays++; totalNormalHours += entry.durationDecimal; }
+    if (entry.durationMinutes > 0) {
+      workedDays++;
+      totalNormalHours += entry.durationDecimal;
+
+      // ── Special hours calculation ──
+      if (entry.startTime && entry.endTime) {
+        const startParts = entry.startTime.split(':').map(Number);
+        const endParts = entry.endTime.split(':').map(Number);
+        const startMin = startParts[0] * 60 + startParts[1];
+        const endMin = endParts[0] * 60 + endParts[1];
+        const grossMin = endMin > startMin ? endMin - startMin : 0;
+        const netMin = entry.durationMinutes;
+        // Ratio of net to gross (to proportionally subtract pause from special hours)
+        const netRatio = grossMin > 0 ? netMin / grossMin : 0;
+
+        // Night hours: minutes worked >= 20:00 (1200 min from midnight)
+        const NIGHT_START = 20 * 60; // 1200
+        if (endMin > NIGHT_START && startMin < endMin) {
+          const nightStart = Math.max(startMin, NIGHT_START);
+          const nightGrossMin = endMin - nightStart;
+          const nightNetMin = nightGrossMin * netRatio;
+          nightHours += nightNetMin / 60;
+        }
+
+        // Sunday hours
+        const dateObj = new Date(entry.date);
+        if (dateObj.getDay() === 0) {
+          sundayHours += entry.durationDecimal;
+        }
+
+        // Holiday hours
+        if (holidays && holidays.has(entry.date)) {
+          holidayHours += entry.durationDecimal;
+        }
+      }
+    }
     if (entry.absenceCode === 'K') totalK++;
     if (entry.absenceCode === 'U') totalU++;
     if (entry.absenceCode === 'UU') totalUU++;
@@ -267,7 +303,13 @@ export function calculateSummary(entries: CalculatedEntry[]): MonthlySummaryData
     if (['K', 'U', 'UU', 'F'].includes(entry.absenceCode)) absenceDays++;
   });
 
-  return { totalNormalHours, totalK, totalU, totalUU, totalF, calendarDays: entries.length, workedDays, absenceDays, totalBreakMinutes, totalDecimalHours };
+  return {
+    totalNormalHours, totalK, totalU, totalUU, totalF,
+    calendarDays: entries.length, workedDays, absenceDays, totalBreakMinutes, totalDecimalHours,
+    nightHours: +nightHours.toFixed(2),
+    sundayHours: +sundayHours.toFixed(2),
+    holidayHours: +holidayHours.toFixed(2),
+  };
 }
 
 export interface EmployeeAccuracy {
@@ -281,12 +323,15 @@ export interface EmployeeAccuracy {
   workedDays: number;
   sickDays: number;
   vacationDays: number;
+  nightHours: number;
+  sundayHours: number;
+  holidayHours: number;
 }
 
-export function calculateEmployeeAccuracy(emp: Employee, allEntries: DailyEntry[]): EmployeeAccuracy {
+export function calculateEmployeeAccuracy(emp: Employee, allEntries: DailyEntry[], holidays?: Set<string>): EmployeeAccuracy {
   const empEntries = allEntries.filter(e => e.employeeId === emp.id);
   const processed = processEntries(empEntries);
-  const summary = calculateSummary(processed);
+  const summary = calculateSummary(processed, holidays);
   const targetHours = emp.weeklyHours * 4.33;
   const accuracy = targetHours > 0 ? Math.round((summary.totalNormalHours / targetHours) * 100) : 0;
   return {
@@ -300,11 +345,14 @@ export function calculateEmployeeAccuracy(emp: Employee, allEntries: DailyEntry[
     workedDays: summary.workedDays,
     sickDays: summary.totalK,
     vacationDays: summary.totalU,
+    nightHours: summary.nightHours,
+    sundayHours: summary.sundayHours,
+    holidayHours: summary.holidayHours,
   };
 }
 
-export function calculateAllEmployeesAccuracy(employees: Employee[], allEntries: DailyEntry[]): EmployeeAccuracy[] {
-  return employees.map(emp => calculateEmployeeAccuracy(emp, allEntries));
+export function calculateAllEmployeesAccuracy(employees: Employee[], allEntries: DailyEntry[], holidays?: Set<string>): EmployeeAccuracy[] {
+  return employees.map(emp => calculateEmployeeAccuracy(emp, allEntries, holidays));
 }
 
 export function exportToExcel(masterData: MasterData, allEntries: DailyEntry[], employees: Employee[], t: TranslateFn, language: Language = 'vi') {
@@ -385,8 +433,14 @@ export function generateSmartSchedule(
   const getNForDay = (dow: number) => busyDays.has(dow) ? Math.max(lunchPeak, dinnerPeak, baseN) : baseN;
   const N = baseN; // default for pre-calculations
 
-  // ── Filter active employees only ──
+  // ── Filter active employees only (respect endDate) ──
   const activeEmployees = employees.filter(e => e.isActive !== false);
+
+  // Helper: check if employee is available on a given date (endDate check)
+  const isEmpAvailableOnDate = (emp: Employee, dateStr: string): boolean => {
+    if (!emp.endDate) return true;
+    return dateStr <= emp.endDate; // available up to and including endDate
+  };
 
   // ── Day metadata ──
   const dayMeta = dates.map((d, i) => {
@@ -430,6 +484,8 @@ export function generateSmartSchedule(
       const meta = dayMeta[dayIndex];
       if (meta.isRestaurantClosed) return;
       if (vacationDays[emp.id].has(dayIndex)) return;
+      // endDate: skip days after employee's last working day
+      if (!isEmpAvailableOnDate(emp, dateStr)) return;
       // count available days (up to 5 per week will be enforced later)
       count++;
     });
@@ -488,6 +544,7 @@ export function generateSmartSchedule(
     // ── Step 1: Select employees with standard 5-day/week limit ──
     let allAvailable = activeEmployees.filter(emp => {
       if (vacationDays[emp.id].has(dayIndex)) return false;
+      if (!isEmpAvailableOnDate(emp, dateStr)) return false;  // endDate check
       if ((weekDayCount[emp.id][week] || 0) >= 5) return false;
       return true;
     });
@@ -496,6 +553,7 @@ export function generateSmartSchedule(
     if (allAvailable.length < targetHeadcount) {
       allAvailable = activeEmployees.filter(emp => {
         if (vacationDays[emp.id].has(dayIndex)) return false;
+        if (!isEmpAvailableOnDate(emp, dateStr)) return false;  // endDate check
         if ((weekDayCount[emp.id][week] || 0) >= 6) return false;
         return true;
       });
@@ -570,6 +628,48 @@ export function generateSmartSchedule(
         weekDayCount[emp.id][week] = (weekDayCount[emp.id][week] || 0) + 1;
       }
     });
+
+    // ── RULE 12: Ensure at least 1 employee works until closing time ──
+    const closeTimeStr = toHHMM(closeTimeDate);
+    const assignedEntries = Object.values(dayEntries).filter(e =>
+      e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode)
+    );
+    const hasClosingStaff = assignedEntries.some(e => e.endTime === closeTimeStr);
+
+    if (!hasClosingStaff && assignedEntries.length > 0) {
+      // Find the employee whose endTime is closest to closeTime → extend them
+      const closeTimeMin = closeTimeDate.getHours() * 60 + closeTimeDate.getMinutes();
+      let bestEntry: DailyEntry | null = null;
+      let bestEndMin = 0;
+
+      assignedEntries.forEach(e => {
+        const [eh, em] = e.endTime.split(':').map(Number);
+        const endMin = eh * 60 + em;
+        if (endMin > bestEndMin) {
+          bestEndMin = endMin;
+          bestEntry = e;
+        }
+      });
+
+      if (bestEntry) {
+        const entry = bestEntry as DailyEntry;
+        const [sh, sm] = entry.startTime.split(':').map(Number);
+        const startMin = sh * 60 + sm;
+        const newGross = closeTimeMin - startMin;
+        // Only extend if within 10h gross limit
+        if (newGross <= 10 * 60 + 45) {
+          entry.endTime = closeTimeStr;
+          entry.pauseMinutes = newGross > 510 ? 45 : newGross > 360 ? 30 : entry.pauseMinutes;
+          // Update tracked minutes
+          const emp = activeEmployees.find(e => e.id === entry.employeeId);
+          if (emp) {
+            const oldNet = bestEndMin - startMin - entry.pauseMinutes;
+            const newNet = newGross - entry.pauseMinutes;
+            minutesAssigned[emp.id] += Math.max(0, newNet - oldNet);
+          }
+        }
+      }
+    }
 
     Object.values(dayEntries).forEach(entry => allEntries.push(entry));
   });
@@ -720,6 +820,21 @@ export function analyzeScheduleWarnings(
         });
       });
     });
+
+    // ── Check 4: No employee working until closing time
+    const dayCloseTimeStr = format(closeTime, 'HH:mm');
+    const hasClosingStaff = activeWorkers.some(e => e.endTime === dayCloseTimeStr);
+    if (!hasClosingStaff && activeWorkers.length > 0) {
+      alerts.push({
+        date: dateStr,
+        dateLabel,
+        severity: 'warning',
+        type: 'gap',
+        message: language === 'de'
+          ? `Kein Mitarbeiter bis Schließzeit (${dayCloseTimeStr}) eingeplant`
+          : `Không có NV làm đến giờ đóng cửa (${dayCloseTimeStr})`,
+      });
+    }
   });
 
   return alerts;
@@ -938,6 +1053,33 @@ export function optimizeSchedule(
           entry.remark = '';
         });
     }
+
+    // FIX 4: Ensure at least 1 employee works until closing time
+    const curActive = dayEntries.filter(e => e.startTime && e.endTime && !['K', 'U', 'UU', 'F'].includes(e.absenceCode));
+    const hasCloser = curActive.some(e => {
+      const [eh, em] = e.endTime.split(':').map(Number);
+      return eh * 60 + em >= closeMin;
+    });
+    if (!hasCloser && curActive.length > 0) {
+      // Find entry with latest endTime and extend to closeMin
+      let best: DailyEntry | null = null;
+      let bestEnd = 0;
+      curActive.forEach(e => {
+        const [eh, em] = e.endTime.split(':').map(Number);
+        const endM = eh * 60 + em;
+        if (endM > bestEnd) { bestEnd = endM; best = e; }
+      });
+      if (best) {
+        const entry = best as DailyEntry;
+        const [sh, sm] = entry.startTime.split(':').map(Number);
+        const sMin = sh * 60 + sm;
+        const newGross = closeMin - sMin;
+        if (newGross <= 10 * 60 + 45) {
+          entry.endTime = toHHMM(closeMin);
+          entry.pauseMinutes = newGross > 510 ? 45 : newGross > 360 ? 30 : entry.pauseMinutes;
+        }
+      }
+    }
   });
 
   // ── PHASE 4: HOURS BALANCING — converge to 95-98% accuracy ──
@@ -1122,6 +1264,9 @@ export function optimizeSchedule(
             if (remain <= tolerance) break;
             const { openMin: dOpenMin, closeMin: dCloseMin, closed } = getDayLimits(entry.date);
             if (closed) continue;
+
+            // endDate: skip days after employee's last working day
+            if (emp.endDate && entry.date > emp.endDate) continue;
 
             // Check 5 days/week limit
             const entryWeek = getWeek(new Date(entry.date), { weekStartsOn: 1 });
