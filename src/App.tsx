@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { MasterData, DailyEntry, CalculatedEntry, MonthlySummaryData, Employee, RestaurantConfig } from './types';
-import { generateMonthDates, processEntries, calculateSummary, exportToExcel, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert, calculateAllEmployeesAccuracy, EmployeeAccuracy, getGermanHolidays } from './lib/utils';
+import { generateMonthDates, processEntries, calculateSummary, exportToExcel, exportToPdf, generateSmartSchedule, analyzeScheduleWarnings, optimizeSchedule, ScheduleAlert, calculateAllEmployeesAccuracy, EmployeeAccuracy, getGermanHolidays } from './lib/utils';
 import { StaffManagement } from './components/StaffManagement';
 
 // Lazy-loaded components — only fetched when user navigates to them
@@ -11,7 +11,7 @@ const RestaurantSettings = React.lazy(() => import('./components/RestaurantSetti
 const DailyOverview = React.lazy(() => import('./components/DailyOverview').then(m => ({ default: m.DailyOverview })));
 import { LoginPage } from './components/LoginPage';
 import { useLocalData } from './hooks/useLocalData';
-import { FileSpreadsheet, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2, RefreshCw, LayoutGrid } from 'lucide-react';
+import { FileSpreadsheet, FileText, Calendar, UserCheck, Settings, Globe, AlertTriangle, AlertCircle, ChevronDown, ChevronUp, LogOut, Wrench, Loader2, RefreshCw, LayoutGrid } from 'lucide-react';
 import { useLanguage } from './i18n';
 
 export default function App() {
@@ -350,6 +350,19 @@ export default function App() {
     }
   };
 
+  const handlePdfExport = () => {
+    if (entries.length === 0) { alert(t('alert.noDataExport')); return; }
+    try {
+      const holidays = getGermanHolidays(masterData.year, masterData.restaurantConfig.bundesland);
+      exportToPdf(masterData, entries, masterData.employees, t, language, holidays);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert(language === 'de'
+        ? 'Fehler beim PDF-Export. Bitte versuchen Sie es erneut.'
+        : 'L\u1ed7i xu\u1ea5t PDF. Vui l\u00f2ng th\u1eed l\u1ea1i.');
+    }
+  };
+
   const selectedEmployee = masterData.employees.find(e => e.id === selectedEmployeeId);
   const currentEmployeeEntries = entries.filter(e => e.employeeId === selectedEmployeeId);
   const calculatedEntries = processEntries(currentEmployeeEntries);
@@ -451,6 +464,15 @@ export default function App() {
                 DE
               </button>
             </div>
+
+            <button
+              onClick={handlePdfExport}
+              disabled={entries.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed shadow-sm"
+            >
+              <FileText size={16} />
+              {t('app.exportPdf')}
+            </button>
 
             <button
               onClick={handleExport}

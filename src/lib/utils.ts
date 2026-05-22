@@ -4,6 +4,8 @@ import { format, getDaysInMonth, isValid, parse, differenceInMinutes, isAfter, a
 import { de } from "date-fns/locale";
 import { vi } from "date-fns/locale";
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { DailyEntry, CalculatedEntry, MasterData, MonthlySummaryData, AbsenceCode, Employee, RestaurantConfig, DayScheduleConfig } from "../types";
 import { TranslateFn, Language } from "../i18n";
 
@@ -1298,3 +1300,136 @@ export function optimizeSchedule(
   return optimized;
 }
 
+// ─────────────────────────────────────────────────────────────
+// PDF Export: Monthly report with employee summary table
+// ─────────────────────────────────────────────────────────────
+
+export function exportToPdf(
+  masterData: MasterData,
+  allEntries: DailyEntry[],
+  employees: Employee[],
+  t: TranslateFn,
+  language: Language = 'vi',
+  holidays?: Set<string>
+) {
+  const doc = new jsPDF();
+  const accuracies = calculateAllEmployeesAccuracy(employees, allEntries, holidays);
+  const monthYearStr = `${masterData.month.toString().padStart(2, '0')}/${masterData.year}`;
+  const now = new Date();
+  const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')}.${now.getFullYear()}`;
+  const isDE = language === 'de';
+
+  // ── Header ──
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(isDE ? 'Monatsbericht' : 'Bao cao thang', 14, 20);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${isDE ? 'Firma' : 'Cong ty'}: ${masterData.companyName}`, 14, 30);
+  doc.text(`${isDE ? 'Zeitraum' : 'Ky'}: ${monthYearStr}`, 14, 36);
+  doc.text(`${isDE ? 'Erstellt am' : 'Ngay xuat'}: ${dateStr}`, 14, 42);
+
+  // ── Summary table ──
+  const headRow = [
+    'Nr',
+    isDE ? 'Name' : 'Ten',
+    isDE ? 'Vertragsart' : 'Loai HD',
+    isDE ? 'Soll/Woche' : 'HD/Tuan',
+    isDE ? 'Soll/Monat' : 'HD/Thang',
+    isDE ? 'Ist/Monat' : 'Thuc te',
+    isDE ? 'Differenz' : 'Chenh lech',
+    isDE ? 'Arbeitstage' : 'Ngay lam',
+    isDE ? 'Krank' : 'Nghi om',
+    isDE ? 'Urlaub' : 'Nghi phep',
+  ];
+
+  const bodyRows = accuracies.map((a, i) => {
+    const emp = employees.find(e => e.id === a.employeeId);
+    const contractLabel = emp?.contractType
+      ? (emp.contractType === 'Vollzeit' ? (isDE ? 'Vollzeit' : 'Toan TG')
+        : emp.contractType === 'Teilzeit' ? (isDE ? 'Teilzeit' : 'Ban TG')
+        : 'Minijob')
+      : '—';
+    return [
+      (i + 1).toString(),
+      a.name,
+      contractLabel,
+      `${a.weeklyHours.toFixed(1)}h`,
+      `${a.targetHours.toFixed(1)}h`,
+      `${a.actualHours.toFixed(1)}h`,
+      `${a.difference >= 0 ? '+' : ''}${a.difference.toFixed(1)}h`,
+      a.workedDays.toString(),
+      a.sickDays.toString(),
+      a.vacationDays.toString(),
+    ];
+  });
+
+  // Totals row
+  const totalTarget = accuracies.reduce((s, a) => s + a.targetHours, 0);
+  const totalActual = accuracies.reduce((s, a) => s + a.actualHours, 0);
+  const totalDiff = totalActual - totalTarget;
+  bodyRows.push([
+    '',
+    isDE ? 'GESAMT' : 'TONG',
+    '',
+    '',
+    `${totalTarget.toFixed(1)}h`,
+    `${totalActual.toFixed(1)}h`,
+    `${totalDiff >= 0 ? '+' : ''}${totalDiff.toFixed(1)}h`,
+    '',
+    '',
+    '',
+  ]);
+
+  autoTable(doc, {
+    startY: 50,
+    head: [headRow],
+    body: bodyRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+    },
+    headStyles: {
+      fillColor: [41, 65, 122],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 247, 250],
+    },
+    // Bold the totals row (last row)
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.index === bodyRows.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [230, 235, 245];
+      }
+      // Color the difference column
+      if (data.section === 'body' && data.column.index === 6) {
+        const val = parseFloat(data.cell.raw as string);
+        if (!isNaN(val)) {
+          data.cell.styles.textColor = val >= 0 ? [0, 120, 60] : [180, 30, 30];
+        }
+      }
+    },
+  });
+
+  // ── Footer ──
+  const finalY = (doc as any).lastAutoTable?.finalY || 150;
+  doc.setFontSize(8);
+  doc.setTextColor(130, 130, 130);
+  doc.text(
+    isDE
+      ? `Erstellt mit Restaurant Staff Scheduling — ${dateStr}`
+      : `Xuat boi Restaurant Staff Scheduling — ${dateStr}`,
+    14,
+    finalY + 15
+  );
+
+  // ── Save ──
+  const safeCompany = masterData.companyName.replace(/[^a-z0-9]/gi, '_') || 'Restaurant';
+  const filename = `Monatsbericht_${safeCompany}_${masterData.year}-${masterData.month.toString().padStart(2, '0')}.pdf`;
+  doc.save(filename);
+}
