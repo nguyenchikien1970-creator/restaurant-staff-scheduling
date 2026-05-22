@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { DailyEntry, Employee, RestaurantConfig } from '../types';
-import { generateMonthDates, getGermanHolidays } from '../lib/utils';
+import { generateMonthDates, getGermanHolidays, isDayClosed } from '../lib/utils';
 import { ChevronLeft, ChevronRight, Users, Clock, Coffee, Calendar } from 'lucide-react';
 
 type TranslateFn = (key: string) => string;
@@ -31,7 +31,7 @@ export function DailyOverview({ entries, employees, config, month, year, t, lang
     return dates.map(dateStr => {
       const dateObj = new Date(dateStr);
       const dow = dateObj.getDay();
-      const isClosed = (config.closedDays || []).includes(dow);
+      const isClosed = isDayClosed(config, dow);
       const isHoliday = holidays.has(dateStr);
 
       const dayEntries = entries.filter(e => e.date === dateStr);
@@ -40,7 +40,7 @@ export function DailyOverview({ entries, employees, config, month, year, t, lang
 
       return { dateStr, dateObj, dow, isClosed, isHoliday, dayEntries, working, absent };
     });
-  }, [dates, entries, config.closedDays, holidays]);
+  }, [dates, entries, config.closedDays, config.daySchedules, holidays]);
 
   const selected = dayData[selectedDateIdx];
 

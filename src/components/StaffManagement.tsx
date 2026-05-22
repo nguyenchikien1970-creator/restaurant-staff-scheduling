@@ -32,7 +32,7 @@ export function StaffManagement({ employees, onChange }: StaffManagementProps) {
     if (!newName) return;
     const hours = parseDecimalComma(newHoursStr);
     const newEmployee: Employee = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       name: newName,
       personnelNumber: newPersonnelNumber || (employees.length + 1).toString().padStart(3, '0'),
       weeklyHours: hours,
