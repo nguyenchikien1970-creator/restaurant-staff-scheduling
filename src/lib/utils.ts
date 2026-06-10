@@ -9,6 +9,8 @@ import autoTable from 'jspdf-autotable';
 import { DailyEntry, CalculatedEntry, MasterData, MonthlySummaryData, AbsenceCode, Employee, RestaurantConfig, DayScheduleConfig } from "../types";
 import { TranslateFn, Language } from "../i18n";
 
+export const MIN_AUTO_SHIFT_MINUTES = 120;
+
 /** Get the open/close times for a specific day-of-week, falling back to the global config */
 export function getDayOpenClose(config: RestaurantConfig, dow: number): { openTime: string; closeTime: string; closed: boolean } {
   const dayConfig = config.daySchedules?.[dow];
@@ -130,22 +132,23 @@ export function generateAutoFillEntries(
   const pool = [...weekdays, ...weekends];
   const neededDays = Math.min(workingDays, pool.length);
   const selectedWork = pool.slice(0, neededDays);
+  const grossShiftMinutes = calculateGrossShiftMinutes(startTime, endTime);
 
   return dates.map(date => {
     const entry: DailyEntry = {
       employeeId, date, startTime: '', pauseMinutes: 0,
       endTime: '', absenceCode: '', remark: ''
     };
-    if (selectedWork.includes(date)) {
+    if (selectedWork.includes(date) && grossShiftMinutes >= MIN_AUTO_SHIFT_MINUTES) {
       entry.startTime = startTime;
       entry.endTime = endTime;
-      entry.pauseMinutes = 30;
+      entry.pauseMinutes = grossShiftMinutes > 510 ? 45 : grossShiftMinutes > 360 ? 30 : 0;
     }
     return entry;
   });
 }
 
-export function calculateWorkedMinutes(startTime: string, endTime: string, pauseMinutes: number): number {
+export function calculateGrossShiftMinutes(startTime: string, endTime: string): number {
   if (!startTime || !endTime) return 0;
   const start = parse(startTime, 'HH:mm', new Date());
   let end = parse(endTime, 'HH:mm', new Date());
@@ -153,7 +156,11 @@ export function calculateWorkedMinutes(startTime: string, endTime: string, pause
   if (isAfter(start, end)) {
     end = addDays(end, 1);
   }
-  let diff = differenceInMinutes(end, start);
+  return Math.max(0, differenceInMinutes(end, start));
+}
+
+export function calculateWorkedMinutes(startTime: string, endTime: string, pauseMinutes: number): number {
+  let diff = calculateGrossShiftMinutes(startTime, endTime);
   diff -= (pauseMinutes || 0);
   return Math.max(0, diff);
 }
@@ -185,6 +192,10 @@ export function validateRow(entry: DailyEntry, durationMinutes: number): string[
     if (entry.startTime && !entry.endTime) warnings.push('warning.endMissing');
     if (!entry.startTime && entry.endTime) warnings.push('warning.startMissing');
     if (entry.pauseMinutes < 0) warnings.push('warning.pauseNegative');
+    const grossShiftMinutes = calculateGrossShiftMinutes(entry.startTime, entry.endTime);
+    if (grossShiftMinutes > 0 && grossShiftMinutes < MIN_AUTO_SHIFT_MINUTES) {
+      warnings.push('warning.shiftUnder2h');
+    }
     // Only flag if we have a full shift recorded
     if (entry.startTime && entry.endTime && durationMinutes > 0) {
       // Calculate GROSS time (total time present = net worked + pause)
@@ -578,7 +589,7 @@ export function generateSmartSchedule(
       const entry = dayEntries[emp.id];
 
       // Use pre-calculated EVEN daily target
-      const targetNetMinutes = Math.max(90, Math.min(600, empDailyTarget[emp.id]));
+      const targetNetMinutes = Math.max(MIN_AUTO_SHIFT_MINUTES, Math.min(600, empDailyTarget[emp.id]));
 
       // Stagger start times
       const staggerMinutes = (idx % 8) * 15;
@@ -592,15 +603,17 @@ export function generateSmartSchedule(
       if (targetNetMinutes < 240 && idx % 2 === 1) {
         const peakTime = parse(dinnerStart, 'HH:mm', new Date());
         const candidate = roundTo15(new Date(peakTime.getTime() + staggerMinutes * 60000));
-        if (!isAfter(candidate, closeTimeDate)) {
-          startDate = candidate;
+        const clampedCandidate = isAfter(openTimeDate, candidate) ? openTimeDate : candidate;
+        if (!isAfter(clampedCandidate, closeTimeDate)) {
+          startDate = clampedCandidate;
         }
       } else if (targetNetMinutes < 240 && idx % 2 === 0) {
         // Start at lunch peak
         const peakTime = parse(lunchStart, 'HH:mm', new Date());
         const candidate = roundTo15(new Date(peakTime.getTime() + staggerMinutes * 60000));
-        if (!isAfter(candidate, closeTimeDate)) {
-          startDate = candidate;
+        const clampedCandidate = isAfter(openTimeDate, candidate) ? openTimeDate : candidate;
+        if (!isAfter(clampedCandidate, closeTimeDate)) {
+          startDate = clampedCandidate;
         }
       }
 
@@ -615,7 +628,7 @@ export function generateSmartSchedule(
 
       const actualGross = differenceInMinutes(endDate, startDate);
 
-      if (actualGross < 60) {
+      if (actualGross < MIN_AUTO_SHIFT_MINUTES) {
         // Too short — skip
       } else {
         const pause = actualGross > 510 ? 45 : actualGross > 360 ? 30 : 0;
@@ -689,7 +702,7 @@ export interface ScheduleAlert {
   date: string;           // yyyy-MM-dd
   dateLabel: string;      // e.g. "So., 09.02."
   severity: ScheduleAlertSeverity;
-  type: 'understaffed' | 'gap' | 'empty';
+  type: 'understaffed' | 'gap' | 'empty' | 'outside_hours' | 'short_shift';
   message: string;
 }
 
@@ -723,6 +736,8 @@ export function analyzeScheduleWarnings(
     const dayOC = getDayOpenClose(config, dow);
     const openTime = parse(dayOC.openTime, 'HH:mm', new Date());
     const closeTime = parse(dayOC.closeTime, 'HH:mm', new Date());
+    const openMinutes = openTime.getHours() * 60 + openTime.getMinutes();
+    const closeMinutes = closeTime.getHours() * 60 + closeTime.getMinutes();
 
     // Active workers: have start and end time, no full-day absence
     const activeWorkers = dayEntries.filter(e =>
@@ -743,7 +758,57 @@ export function analyzeScheduleWarnings(
       return; // no need to check further for this day
     }
 
-    // ── Check 2: Understaffed (below minStaff)
+    // ── Check 2: Shifts outside the configured opening hours
+    const startsBeforeOpen = activeWorkers.some(entry => {
+      const start = parse(entry.startTime, 'HH:mm', new Date());
+      return start.getHours() * 60 + start.getMinutes() < openMinutes;
+    });
+    if (startsBeforeOpen) {
+      alerts.push({
+        date: dateStr,
+        dateLabel,
+        severity: 'error',
+        type: 'outside_hours',
+        message: language === 'de'
+          ? `Mindestens eine Schicht beginnt vor der Öffnungszeit (${dayOC.openTime})`
+          : `Có ca bắt đầu trước giờ mở cửa (${dayOC.openTime})`,
+      });
+    }
+
+    const endsAfterClose = activeWorkers.some(entry => {
+      const end = parse(entry.endTime, 'HH:mm', new Date());
+      return end.getHours() * 60 + end.getMinutes() > closeMinutes;
+    });
+    if (endsAfterClose) {
+      alerts.push({
+        date: dateStr,
+        dateLabel,
+        severity: 'error',
+        type: 'outside_hours',
+        message: language === 'de'
+          ? `Mindestens eine Schicht endet nach der Schließzeit (${dayOC.closeTime})`
+          : `Có ca kết thúc sau giờ đóng cửa (${dayOC.closeTime})`,
+      });
+    }
+
+    // ── Check 3: Shifts shorter than the automatic minimum
+    const shortShiftCount = activeWorkers.filter(entry => {
+      const gross = calculateGrossShiftMinutes(entry.startTime, entry.endTime);
+      return gross > 0 && gross < MIN_AUTO_SHIFT_MINUTES;
+    }).length;
+    if (shortShiftCount > 0) {
+      alerts.push({
+        date: dateStr,
+        dateLabel,
+        severity: 'warning',
+        type: 'short_shift',
+        message: language === 'de'
+          ? `${shortShiftCount} Schicht${shortShiftCount !== 1 ? 'en' : ''} kürzer als 2 Stunden`
+          : `${shortShiftCount} ca làm dưới 2 giờ`,
+      });
+    }
+
+    // ── Check 4: Understaffed (below minStaff)
     if (activeWorkers.length < config.minStaff) {
       alerts.push({
         date: dateStr,
@@ -756,7 +821,7 @@ export function analyzeScheduleWarnings(
       });
     }
 
-    // ── Check 3: Coverage gaps – only during PEAK HOURS (configurable)
+    // ── Check 5: Coverage gaps – only during PEAK HOURS (configurable)
     const lps = config.lunchPeakStart || '12:00', lpe = config.lunchPeakEnd || '15:00';
     const dps = config.dinnerPeakStart || '18:00', dpe = config.dinnerPeakEnd || '21:00';
     const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -765,8 +830,6 @@ export function analyzeScheduleWarnings(
       { start: toMin(dps), end: toMin(dpe) },
     ];
 
-    const openMinutes  = openTime.getHours() * 60 + openTime.getMinutes();
-    const closeMinutes = closeTime.getHours() * 60 + closeTime.getMinutes();
     if (closeMinutes <= openMinutes) return;
 
     // Build covered intervals from all active workers
@@ -823,7 +886,7 @@ export function analyzeScheduleWarnings(
       });
     });
 
-    // ── Check 4: No employee working until closing time
+    // ── Check 6: No employee working until closing time
     const dayCloseTimeStr = format(closeTime, 'HH:mm');
     const hasClosingStaff = activeWorkers.some(e => e.endTime === dayCloseTimeStr);
     if (!hasClosingStaff && activeWorkers.length > 0) {
@@ -953,9 +1016,10 @@ export function optimizeSchedule(
         const stagger = idx * 30;
         const startMinutes = openMin + stagger;
         const shiftLength = Math.min(8 * 60 + 30, closeMin - startMinutes);
+        if (shiftLength < MIN_AUTO_SHIFT_MINUTES) return;
         entry.startTime = toHHMM(startMinutes);
         entry.endTime = toHHMM(Math.min(startMinutes + shiftLength, closeMin));
-        entry.pauseMinutes = shiftLength > 510 ? 45 : 30;
+        entry.pauseMinutes = shiftLength > 510 ? 45 : shiftLength > 360 ? 30 : 0;
         entry.absenceCode = '';
         entry.remark = '';
       });
@@ -1019,10 +1083,11 @@ export function optimizeSchedule(
         if (!best || best.debt <= 0) return;
         const shiftStart = Math.max(gap.from - 30, openMin);
         const shiftEnd = Math.min(gap.to + 30, closeMin);
-        if (shiftEnd - shiftStart >= 90) {
+        const gross = shiftEnd - shiftStart;
+        if (gross >= MIN_AUTO_SHIFT_MINUTES) {
           best.entry.startTime = toHHMM(shiftStart);
           best.entry.endTime = toHHMM(shiftEnd);
-          best.entry.pauseMinutes = (shiftEnd - shiftStart - 30) > 480 ? 45 : 30;
+          best.entry.pauseMinutes = gross > 510 ? 45 : gross > 360 ? 30 : 0;
           best.entry.absenceCode = '';
           best.entry.remark = '';
           if (best.idx >= 0) currentIdle.splice(best.idx, 1);
@@ -1048,9 +1113,10 @@ export function optimizeSchedule(
         .slice(0, deficit)
         .forEach(({ entry }) => {
           const shiftLen = Math.min(8 * 60 + 30, closeMin - openMin);
+          if (shiftLen < MIN_AUTO_SHIFT_MINUTES) return;
           entry.startTime = toHHMM(openMin);
           entry.endTime = toHHMM(Math.min(openMin + shiftLen, closeMin));
-          entry.pauseMinutes = shiftLen > 510 ? 45 : 30;
+          entry.pauseMinutes = shiftLen > 510 ? 45 : shiftLen > 360 ? 30 : 0;
           entry.absenceCode = '';
           entry.remark = '';
         });
@@ -1093,7 +1159,7 @@ export function optimizeSchedule(
   const MAX_PASSES = 20;
 
   // Helper: recalculate pause for a given gross duration
-  const correctPause = (gross: number) => gross > 510 ? 45 : 30;
+  const correctPause = (gross: number) => gross > 510 ? 45 : gross > 360 ? 30 : 0;
 
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     let changed = false;
@@ -1158,7 +1224,7 @@ export function optimizeSchedule(
           for (const sh of longShifts) {
             if (remain <= tolerance) break;
             // Min 2h gross after trimming
-            const minGross = 120;
+            const minGross = MIN_AUTO_SHIFT_MINUTES;
             const maxTrimNet = sh.net - (minGross - sh.entry.pauseMinutes);
             const trim = Math.floor(Math.min(remain, Math.max(0, maxTrimNet)) / 15) * 15;
             if (trim < 15) continue;
@@ -1279,7 +1345,7 @@ export function optimizeSchedule(
             const estGross = targetNet + 30;
             const gross = Math.min(estGross, maxGross, dCloseMin - dOpenMin);
 
-            if (gross >= 120) { // Min 2h gross
+            if (gross >= MIN_AUTO_SHIFT_MINUTES) {
               const pause = correctPause(gross);
               entry.startTime = toHHMM(dOpenMin);
               entry.endTime = toHHMM(dOpenMin + gross);
