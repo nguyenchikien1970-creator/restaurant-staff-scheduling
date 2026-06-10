@@ -15,6 +15,25 @@ You are an AI coding agent working on this repository. Follow a conservative deb
 - Keep manual and legacy user data intact unless a migration is explicitly approved.
 - Move unrelated untracked files out of the repo before final release.
 
+## Project Memory Workflow
+
+Before working:
+
+1. Read AGENTS.md.
+2. Read PROJECT_MEMORY.md.
+3. Run git status.
+4. Confirm the last known state, current open issues, and next best step.
+5. Do not assume the previous task is complete unless PROJECT_MEMORY.md says so.
+
+After working:
+
+1. Update PROJECT_MEMORY.md.
+2. Record what changed.
+3. Record what was tested.
+4. Record what remains open.
+5. Record the exact next best step for the next session.
+6. If the app was deployed or tested by a customer, record the production/preview status and customer feedback.
+
 ## Debug Workflow
 
 1. Inspect the project structure.
